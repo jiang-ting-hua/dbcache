@@ -40,6 +40,9 @@ var (
 	AsyncSqlchan       chan *AsyncSql         //异步数据库同步管道
 	TableConfig        = conf.Table{}         //缓存用户表信息
 	DbCache            = sync.Map{}           //用来缓存的表数据
+	RowNumDbCache      []*sync.Map            //用来根据行号查询缓存,用于页面分页显示.
+	delRowNum          = map[int]bool{}       //保存RowNumDbCache中已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+	mutex              sync.RWMutex           //读写锁
 	DbConfig           = conf.DbConfig{}      //配置文件中db配置信息
 	DbConn             *sql.DB                //数据库对象
 	ColumnInfo         map[string]*columnInfo //数据库缓存表中列的信息
@@ -79,7 +82,7 @@ func checkFileSize(file *os.File) bool {
 		err = fmt.Errorf("get async Sql file info failed, file name:%s, err:%v\n", file.Name(), err)
 		return false
 	}
-	//如果文件大于等于异步保存SQL文件最大值,返回真.MaxAsyncFileSize是MB单位.
+	//如果文件大于等于异步保存SQL文件最大值,返回真.
 	return fileInfo.Size() >= DataSyncConf.MaxAsyncFileSize*1024*1024
 }
 
@@ -94,11 +97,10 @@ func splitFile(file *os.File) (newFile *os.File, err error) {
 	currentTime := time.Now().Format("20060102_150405")
 	logFileName := path.Join(DataSyncConf.AsyncFilePath, oldFileName)
 	newPath := fmt.Sprintf("%s_%s.bak", logFileName, currentTime)
+
 	file.Close()
 
-	//原文件改名
 	os.Rename(logFileName, newPath)
-	//再次打开新的日志文件
 	fileObj, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		err = fmt.Errorf("again open Async sql file failed, file name:%s, err:%v\n", logFileName, err)
@@ -149,14 +151,14 @@ func backSyncSql() {
 		if checkFileSize(AsyncFileObj) {
 			newFile, err := splitFile(AsyncFileObj)
 			if err != nil {
-				logs.Error("a","backSyncSql(),splitFile() faild. err: %s",err)
+				logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
 			}
 			AsyncFileObj = newFile
 		}
 		if checkFileSize(AsyncFailedFileObj) {
 			newFile, err := splitFile(AsyncFailedFileObj)
 			if err != nil {
-				logs.Error("a","backSyncSql(),splitFile() faild. err: %s",err)
+				logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
 			}
 			AsyncFailedFileObj = newFile
 		}
@@ -173,25 +175,25 @@ func backSyncSql() {
 		if sqlTmp.isFinish == true {
 			continue
 		}
-		//需执行的sql,首先保存于文件
+
 		sqlMsg := fmt.Sprintf("/* %s */  %s;\n", sqlTmp.timestamp, sqlTmp.exeSql)
 		fmt.Fprintf(AsyncFileObj, sqlMsg)
 
-		//执行SQL语句
 		_, err := DbConn.Exec(sqlTmp.exeSql)
 		if err != nil {
-			time.Sleep(time.Millisecond * 1000)
+			time.Sleep(time.Millisecond * 500)
 			_, err := DbConn.Exec(sqlTmp.exeSql)
 			if err != nil {
 				sqlMsg := fmt.Sprintf("/* [%s][%s] */  %s;\n", sqlTmp.timestamp, err, sqlTmp.exeSql)
 				fmt.Fprintf(AsyncFailedFileObj, sqlMsg)
-				logs.Error("a","backSyncSql(),DbConn.Exec(%s) faild. err: %s",sqlTmp.exeSql,err)
+				logs.Error("a", "backSyncSql(),DbConn.Exec(%s) faild. err: %s", sqlTmp.exeSql, err)
 				sqlTmp.isFinish = false
 			}
 		}
 		sqlTmp.isFinish = true
 	}
 }
+
 //初始化缓存信息
 func InitCache(db *sql.DB) (rowNum int, err error) {
 	//读取配置文件,数据库异步同步数据的信息.
@@ -204,7 +206,6 @@ func InitCache(db *sql.DB) (rowNum int, err error) {
 	if err != nil {
 		return 0, err
 	}
-
 	var selectSql string
 	var countSql string
 	if TableConfig.GetWhere() == "" {
@@ -215,19 +216,20 @@ func InitCache(db *sql.DB) (rowNum int, err error) {
 		countSql = "select count(1) from " + TableConfig.GetTableName() + " where " + TableConfig.GetWhere()
 	}
 
-	var count int
+	var count int64
 	row := db.QueryRow(countSql)
 	err = row.Scan(&count)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			err = fmt.Errorf("InitCache(),从数据库中查询总行数,查询的结果为空: %s", err)
 			return 0, err
 		} else {
 			err = fmt.Errorf("InitCache(),从数据库中查询总行数失败: %s", err)
 			return 0, err
 		}
 	}
+	RowNumDbCache = make([]*sync.Map, count, count*2)
 
-	// 检索缓存数据
 	rows, err := db.Query(selectSql)
 	if err != nil {
 		err = fmt.Errorf("InitCache(),执行select查询,检索数据时失败: %s", err)
@@ -269,6 +271,7 @@ func InitCache(db *sql.DB) (rowNum int, err error) {
 		ColumnInfo[name] = &column
 	}
 
+
 	values := make([]sql.RawBytes, len(columns))
 	scanArgs := make([]interface{}, len(columns))
 	for i := range values {
@@ -282,27 +285,17 @@ func InitCache(db *sql.DB) (rowNum int, err error) {
 			return 0, err
 		}
 		var value string
-		var RowMap sync.Map
-		//RowMap := new(sync.Map)
+		//var RowMap sync.Map
+		RowMap := new(sync.Map)
 		PkeyValue := ""
 		for i, columnValue := range values {
-			//columnType := GetColumnType(columns[i])
-			//switch columnType {
-			//case "DATATIME":
-			//    //2020-02-15T010:24:45+08:00
-			//	string(columnValue)
-			//case :
-			//default:
-			//	value = string(columnValue)
-			//}
-
 			// 检查值是否为零（空值）,不为空转换为字符串
 			if columnValue == nil {
 				value = "NULL"
 			} else {
 				value = string(columnValue)
 			}
-
+			//取出主键值
 			if TableConfig.GetPkey() == columns[i] {
 				PkeyValue = value
 			}
@@ -310,7 +303,8 @@ func InitCache(db *sql.DB) (rowNum int, err error) {
 			RowMap.Store(columns[i], value)
 		}
 
-		DbCache.Store(PkeyValue, RowMap)
+		DbCache.Store(PkeyValue, *RowMap)
+		RowNumDbCache[rowNum] = RowMap
 		rowNum++
 	}
 	if err = rows.Err(); err != nil {
@@ -354,6 +348,83 @@ func GetRow(Pkey string) (result map[string]string, err error) {
 		return result, err
 	}
 	return result, nil
+}
+
+//(该函数仅于分页显示,提取数据)从缓存中,获取指定的行,开始行-结束行.(不包括结束行)并不是与数据库中行号一致.
+//因为从数据库中检索数据时,数据先后不一定.这只是缓存的行号.目的是一样.不影响使用.
+func GetRowBetween(start int, end int) (result []map[string]string) {
+	if start > len(RowNumDbCache) {
+		start = len(RowNumDbCache) - 1
+	}
+	if end > len(RowNumDbCache) {
+		end = len(RowNumDbCache)
+	}
+	//获取start到end之间删除的行
+	var delRowCount int
+	for k, _ := range delRowNum {
+		if k >= start && k < end {
+			delRowCount++
+		}
+	}
+
+	for i := start; i < end+delRowCount; i++ {
+		if delRowNum[i] {
+			continue
+		}
+
+		row := make(map[string]string, end-start)
+		rowMap := *RowNumDbCache[i]
+		rowMap.Range(func(column, value interface{}) bool {
+			row[column.(string)] = value.(string)
+			return true
+		})
+		result = append(result, row)
+	}
+	return result
+}
+
+//(该函数仅于分页显示,提取数据),获取用于分页缓存中数据的行号
+func getRowNum(pkeyValue string) (n int) {
+	pkeyValue = strings.TrimSpace(pkeyValue)
+	var isFound bool
+	for i := 0; i < len(RowNumDbCache); i++ {
+		rowMap := *RowNumDbCache[i]
+		isFound = false
+		rowMap.Range(func(column, value interface{}) bool {
+			if column.(string) == TableConfig.GetPkey() && value.(string) == pkeyValue {
+				isFound = true
+			}
+			return true
+		})
+		if isFound {
+			return i
+		}
+	}
+	return -1
+}
+
+//(该函数仅于分页),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+func delRowNumDbCache(pkeyValue string) {
+	//检查当保存删除的行容量,重新初始化RowNumDbCache
+	size := len(RowNumDbCache)
+	if len(delRowNum) >= size {
+		mutex.Lock()
+		RowNumDbCache = make([]*sync.Map, 0, size)
+		delRowNum = make(map[int]bool,size)
+		DbCache.Range(func(_, v interface{}) bool {
+			rowMap := v.(sync.Map)
+			RowNumDbCache = append(RowNumDbCache, &rowMap)
+			return true
+		})
+		mutex.Unlock()
+	}
+
+	n := getRowNum(pkeyValue)
+	if n != -1 {
+		mutex.Lock()
+		delRowNum[n] = true
+		mutex.Unlock()
+	}
 }
 
 //根据主键,获取一列的数据.
@@ -417,7 +488,6 @@ func GetCondition(where string, operator string) (whereCondition [][]string, err
 	}
 
 	for _, condition := range slices {
-		//如果条件是!=(不等于)
 		if i := strings.Index(condition, "!="); i != -1 {
 			result, err := SplitCondition(condition, "!=")
 			if err != nil {
@@ -425,7 +495,7 @@ func GetCondition(where string, operator string) (whereCondition [][]string, err
 				return nil, err
 			}
 			whereCondition = append(whereCondition, result)
-			//如果条件是=(等于)
+
 		} else if i := strings.Index(condition, "="); i != -1 {
 			result, err := SplitCondition(condition, "=")
 			if err != nil {
@@ -438,7 +508,7 @@ func GetCondition(where string, operator string) (whereCondition [][]string, err
 	return whereCondition, err
 }
 
-//根据where条件,获取多行数据.保存于result []map[string]string
+//根据where条件,获取多行数据.
 func GetWhere(where string) (result []map[string]string, err error) {
 	whereCondition := [][]string{}
 	where = strings.TrimSpace(where)
@@ -501,12 +571,12 @@ func GetWhere(where string) (result []map[string]string, err error) {
 					whereCondition[i][3] = "false"
 				}
 			}
-
 			if isMatch == false {
 				rowMap.Range(func(k, v interface{}) bool {
 					(row)[k.(string)] = v.(string)
 					return true
 				})
+
 				result = append(result, row)
 			}
 
@@ -518,15 +588,14 @@ func GetWhere(where string) (result []map[string]string, err error) {
 					whereCondition[i][3] = "false"
 				}
 			}
+
 			if isMatch == true {
 				rowMap.Range(func(k, v interface{}) bool {
-					//(*row)[k.(string)] = v.(string)
 					(row)[k.(string)] = v.(string)
 					return true
 				})
 				result = append(result, row)
 			}
-
 
 		case isAnd == false && isOr == false:
 			isMatch := false
@@ -536,6 +605,7 @@ func GetWhere(where string) (result []map[string]string, err error) {
 					whereCondition[i][3] = "false"
 				}
 			}
+
 			if isMatch == true {
 				rowMap.Range(func(k, v interface{}) bool {
 					(row)[k.(string)] = v.(string)
@@ -552,7 +622,6 @@ func GetWhere(where string) (result []map[string]string, err error) {
 
 //根据主键值,删除该行数据.
 func DelRow(Pkey string) (n int64, err error) {
-	//删除数据库对应主键的行
 	n, err = DelDbRow(Pkey)
 	if err != nil {
 		err = fmt.Errorf("DelRow(),在数据库中删除主键为(%s)的行失败.err : %s", Pkey, err)
@@ -560,7 +629,8 @@ func DelRow(Pkey string) (n int64, err error) {
 	}
 	//删除缓存
 	DbCache.Delete(Pkey)
-
+	//删除用于分页缓存中的数据
+	delRowNumDbCache(Pkey)
 	return n, err
 }
 
@@ -592,7 +662,7 @@ func DelDbRow(key string) (n int64, err error) {
 	return 0, nil
 }
 
-//根据主键值,更新某列的值.
+//根据主键,更新一列的数据.
 func UpdateColumn(Pkey string, column string, value string) (n int64, err error) {
 	Columns := TableConfig.GetColumns()
 	isExist := false
@@ -626,7 +696,7 @@ func UpdateColumn(Pkey string, column string, value string) (n int64, err error)
 	return 0, nil
 }
 
-//根据主键值,更新数据库中某列.
+//根据主键,更新数据库中一列.
 func UpdateDbcolumn(Pkey string, column string, value string) (n int64, err error) {
 	columnType := GetColumnType(column)
 	if columnType == "" {
@@ -657,7 +727,7 @@ func UpdateDbcolumn(Pkey string, column string, value string) (n int64, err erro
 	return 0, nil
 }
 
-//根据主键值,更新多列数据.
+//根据主键,更新多列数据.
 func UpdateColumns(Pkey string, where string) (n int64, err error) {
 	whereCondition, err := GetCondition(where, ",")
 	if err != nil {
@@ -665,7 +735,7 @@ func UpdateColumns(Pkey string, where string) (n int64, err error) {
 		return 0, err
 	}
 	columns := TableConfig.GetColumns()
-	//检查该列是否存在于缓存表中.
+
 	isExist := false
 	for _, condition := range whereCondition {
 		for _, column := range columns {
@@ -713,7 +783,6 @@ func GetSqlStr(condition string) (SqlStr string) {
 	var columns string
 
 	for _, condition := range whereCondition {
-		//判断列是否是INT,FLOAT,DOUBLE,DECIMAL.
 		columnType := GetColumnType(condition[0])
 		if strings.Contains(columnType, "INT") || columnType == "FLOAT" || columnType == "DOUBLE" || columnType == "DECIMAL" {
 			columns = columns + condition[0] + "=" + condition[2] + ","
@@ -742,7 +811,7 @@ func isExistPkey(condition string) (isTrue bool) {
 	return isTrue
 }
 
-//根据主键值,更新数据库中多列值.
+//根据主键,更新数据库中多列.
 func UpdateDbcolumns(Pkey string, condition string) (n int64, err error) {
 
 	SqlStr := GetSqlStr(condition)
@@ -759,10 +828,10 @@ func UpdateDbcolumns(Pkey string, condition string) (n int64, err error) {
 			return 0, err
 		}
 		return n, err
-	}else{
+	} else {
 		sendToAsyncChan(sqlString)
 	}
-	return 0,nil
+	return 0, nil
 }
 
 //插入一行数据.
@@ -773,30 +842,28 @@ func InsertRow(condition string) (n int64, err error) {
 		err = fmt.Errorf("InsertRow(),获取条件错误. err: %s", err)
 		return 0, err
 	}
-	//判断插入一行数据中，有没有主键．
-	//如果是自增列，则不需要主键．
+
 	Pkey := TableConfig.GetPkey()
 	var PkeyValue string
 	isPkey := false
 	for _, condition := range whereCondition {
 		RowMap.Store(condition[0], condition[2])
-		//判断是否有主键
 		if condition[0] == Pkey {
 			PkeyValue = condition[2]
 			isPkey = true
 		}
-		//判断是否可为空
-		colInfo,ok := ColumnInfo[condition[0]]
-		if ok{
-			if colInfo.isNullable == true && colInfo.nullable == false{
+
+		colInfo, ok := ColumnInfo[condition[0]]
+		if ok {
+			if colInfo.isNullable == true && colInfo.nullable == false {
 				if strings.TrimSpace(condition[2]) == "" {
-					err = fmt.Errorf("InsertRow(),该列%s不能为空. err: %s",condition[0], err)
+					err = fmt.Errorf("InsertRow(),该列%s不能为空. err: %s", condition[0], err)
 					return 0, err
 				}
 			}
 		}
 	}
-	//不是自增列,必须要有主键.自增列可以不要
+
 	if TableConfig.PkeyIsIncrement() == false && isPkey != true {
 		err = fmt.Errorf("InsertRow(),插入行中,没有主键.条件: %s, 主键: %s, err: %s", condition, Pkey, err)
 		return 0, err
@@ -808,6 +875,12 @@ func InsertRow(condition string) (n int64, err error) {
 	}
 	//插入缓存
 	DbCache.Store(PkeyValue, *RowMap)
+
+	//插入用于分页查询缓存
+	mutex.Lock()
+	RowNumDbCache = append(RowNumDbCache, RowMap)
+	mutex.Unlock()
+
 	return i, nil
 }
 
@@ -827,8 +900,8 @@ func InsertDbRow(condition string) (n int64, err error) {
 			return 0, err
 		}
 		return n, err
-	}else{
+	} else {
 		sendToAsyncChan(sqlString)
 	}
-	return 0,nil
+	return 0, nil
 }
