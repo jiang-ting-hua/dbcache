@@ -73,7 +73,7 @@ users.sql这个有建表结构和数据.目前只在mysql上测试了的.
 	
 	insert := "uid=21111111,name=jth,address=重庆,password=888888,age=33,price=66.123456,create_date=2020-02-02 02:02:02,update_date=2020-01-01 01:01:01"
 
-        八,GetRowNum():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
+  八,GetRowBetween():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
 	rows := dbcache.GetRowBetween(0,10)
 
 
