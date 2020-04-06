@@ -20,14 +20,14 @@
 
 ### 以下是使用方法.
 
-	初始化日志库
+	初始化日志库,需设置配置文件config.conf
 	logs.InitLog()
 	defer logs.Close()
 
-	连接数据库,初始化调用.
+	连接数据库,初始化调用.需设置配置文件config.conf
 	db, err := dbcache.ConnectDB()
 
-	初始化需要缓存的数据,把数据缓存在内存中.
+	初始化需要缓存的数据,把数据缓存在内存中.是根据配置文件cache.conf需要缓存的表及列
 	rowNum, err := dbcache.InitCache(db)
 
 
