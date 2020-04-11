@@ -1,0 +1,2 @@
+*.sql linguist-language=go
+*.conf linguist-language=go
