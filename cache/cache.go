@@ -32,7 +32,7 @@ type DBcache struct {
 	DataSyncConf conf.DataSync          //[配置文件cache.conf]保存数据库数据同步.是实时还是异步.
 	ColumnInfo   map[string]*columnInfo //数据库缓存表中列的信息
 	CacheType    string                 //缓存类型.array数组,link链表[用于页面分页显示]
-	dataSync       *DataSync
+	dataSync     *DataSync
 	//map数据缓存对象[主缓存对象]
 	DbCache sync.Map //用来缓存的表数据
 	//链表缓存对象
@@ -42,7 +42,7 @@ type DBcache struct {
 	delRowNum     map[int]bool //保存RowNumDbCache中已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
 	RowCount      int64        //总行数
 	rwMutex       sync.RWMutex //读写锁
-	mutex 		  sync.Mutex   //互斥锁
+	mutex         sync.Mutex   //互斥锁
 }
 
 func NewDBcache(db *sql.DB) *DBcache {
@@ -57,13 +57,13 @@ func NewDBcache(db *sql.DB) *DBcache {
 		RowNumDbCache: nil,
 		delRowNum:     make(map[int]bool),
 		RowCount:      0,
-		rwMutex:         sync.RWMutex{},
+		rwMutex:       sync.RWMutex{},
+		mutex:         sync.Mutex{},
 	}
 }
 
-
 //初始化缓存信息
-func InitCache(db *sql.DB,) (dbCache *DBcache, err error) {
+func InitCache(db *sql.DB, ) (dbCache *DBcache, err error) {
 	dbCache = NewDBcache(db)
 	//读取配置文件,初始化配置信息
 	err = conf.ParseConf(conf.TABLES_CONF, &dbCache.TableConfig)
@@ -196,7 +196,7 @@ func InitCache(db *sql.DB,) (dbCache *DBcache, err error) {
 
 		dbCache.DbCache.Store(PkeyValue, *RowMap)
 		dbCache.RowNumDbCache[rowNum] = RowMap
-		node :=&Node{
+		node := &Node{
 			rowNum: rowNum,
 			pkey:   PkeyValue,
 			row:    RowMap,
@@ -213,7 +213,7 @@ func InitCache(db *sql.DB,) (dbCache *DBcache, err error) {
 
 	//判断是实时更新,还是后台异步同步数据库数据.
 	if dbCache.DataSyncConf.RealTime == false {
-		err := InitAsync(db,dbCache.dataSync,dbCache.TableConfig.GetTableName())
+		err := InitAsync(db, dbCache.dataSync, dbCache.TableConfig.GetTableName())
 		if err != nil {
 			err = fmt.Errorf("InitAsync(),初始化异步同步数据库失败: %s", err)
 			return nil, err
@@ -269,9 +269,9 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 
 	//删除用于分页缓存中的数据
 	switch d.TableConfig.CacheType {
-	case "array":   //数据保存于数组.
+	case "array": //数据保存于数组.
 		d.delRowNumDbCache(Pkey)
-	case "link":    //数据保存于链表
+	case "link": //数据保存于链表
 		d.LinkDbCache.DeleteNodePkey(Pkey)
 	}
 	return n, err
@@ -323,7 +323,6 @@ func (d *DBcache) delRowNumDbCache(pkeyValue string) {
 			d.RowNumDbCache = append(d.RowNumDbCache, &rowMap)
 			return true
 		})
-
 	}
 	d.mutex.Unlock()
 
@@ -340,6 +339,10 @@ func (d *DBcache) getRowNum(pkeyValue string) (n int) {
 	pkeyValue = strings.TrimSpace(pkeyValue)
 	var isFound bool
 	for i := 0; i < len(d.RowNumDbCache); i++ {
+		if d.delRowNum[i] {
+			continue
+		}
+
 		rowMap := *d.RowNumDbCache[i]
 		isFound = false
 		rowMap.Range(func(column, value interface{}) bool {
@@ -365,7 +368,7 @@ func (d *DBcache) GetColumnType(column string) (columnType string) {
 }
 
 //根据where条件,获取多行数据.
-func (d *DBcache)GetWhere(where string) (result []map[string]string, err error) {
+func (d *DBcache) GetWhere(where string) (result []map[string]string, err error) {
 	//存储各条件表达式
 	whereCondition := [][]string{}
 
@@ -502,7 +505,7 @@ func (d *DBcache)GetWhere(where string) (result []map[string]string, err error) 
 }
 
 //获取and或or二边的条件表达式
-func (d *DBcache)GetCondition(where string, operator string) (whereCondition [][]string, err error) {
+func (d *DBcache) GetCondition(where string, operator string) (whereCondition [][]string, err error) {
 	slices := make([]string, 0)
 	whereCondition = [][]string{}
 	switch {
@@ -545,7 +548,7 @@ func (d *DBcache)GetCondition(where string, operator string) (whereCondition [][
 }
 
 //分解字符串保存于切片中,去除两边的空格.
-func (d *DBcache)SplitString(str string, operator string) (slices []string) {
+func (d *DBcache) SplitString(str string, operator string) (slices []string) {
 	slices = strings.Split(str, operator)
 	for i, _ := range slices {
 		slices[i] = strings.TrimSpace(slices[i])
@@ -556,7 +559,7 @@ func (d *DBcache)SplitString(str string, operator string) (slices []string) {
 //分割表达式
 //以(and,or,逗号等分割)分解条件表达式,保存于切片,例如:user=xiaoming,pwd=1345534
 //分解为每个单独的字符串,例:user=xiaoming,分解成三个,user,=,xiaoming
-func (d *DBcache)SplitCondition(str string, operator string) (result []string, err error) {
+func (d *DBcache) SplitCondition(str string, operator string) (result []string, err error) {
 	if i := strings.Index(str, operator); i != -1 {
 		column := str[:i]
 		value := str[i+1:]
@@ -575,7 +578,7 @@ func (d *DBcache)SplitCondition(str string, operator string) (result []string, e
 }
 
 //根据主键,更新一列的数据.
-func (d *DBcache)UpdateColumn(Pkey string, column string, value string) (n int64, err error) {
+func (d *DBcache) UpdateColumn(Pkey string, column string, value string) (n int64, err error) {
 	Columns := d.TableConfig.GetColumns()
 	isExist := false
 	for _, v := range Columns {
@@ -609,7 +612,7 @@ func (d *DBcache)UpdateColumn(Pkey string, column string, value string) (n int64
 }
 
 //根据主键,更新数据库中一列.
-func (d *DBcache)UpdateDbcolumn(Pkey string, column string, value string) (n int64, err error) {
+func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n int64, err error) {
 	columnType := d.GetColumnType(column)
 	if columnType == "" {
 		columnType = "VARCHAR"
@@ -641,7 +644,7 @@ func (d *DBcache)UpdateDbcolumn(Pkey string, column string, value string) (n int
 }
 
 //根据主键,更新多列数据.
-func (d *DBcache)UpdateColumns(Pkey string, where string) (n int64, err error) {
+func (d *DBcache) UpdateColumns(Pkey string, where string) (n int64, err error) {
 	whereCondition, err := d.GetCondition(where, ",")
 	if err != nil {
 		err = fmt.Errorf("UpdateColumns(),条件错误: %s. err: %s", where, err)
@@ -687,7 +690,7 @@ func (d *DBcache)UpdateColumns(Pkey string, where string) (n int64, err error) {
 }
 
 //根据主键,更新数据库中多列.
-func (d *DBcache)UpdateDbcolumns(Pkey string, condition string) (n int64, err error) {
+func (d *DBcache) UpdateDbcolumns(Pkey string, condition string) (n int64, err error) {
 
 	SqlStr := d.GetSqlStr(condition)
 	sqlString := "UPDATE " + d.TableConfig.GetTableName() + " SET " + SqlStr + " WHERE " + d.TableConfig.GetPkey() + "='" + Pkey + "'"
@@ -710,7 +713,7 @@ func (d *DBcache)UpdateDbcolumns(Pkey string, condition string) (n int64, err er
 }
 
 //根据表达式,得到SQL语句的字符串.
-func (d *DBcache)GetSqlStr(condition string) (SqlStr string) {
+func (d *DBcache) GetSqlStr(condition string) (SqlStr string) {
 	whereCondition, err := d.GetCondition(condition, ",")
 	if err != nil {
 		logs.Error("a", "GetSqlStr(),条件错误: %s, err: %s", condition, err)
@@ -732,7 +735,7 @@ func (d *DBcache)GetSqlStr(condition string) (SqlStr string) {
 }
 
 //判断是否存在主键.
-func (d *DBcache)isExistPkey(condition string) (isTrue bool) {
+func (d *DBcache) isExistPkey(condition string) (isTrue bool) {
 	whereCondition, err := d.GetCondition(condition, ",")
 	if err != nil {
 		logs.Info("a", "isExistPkey(),条件错误: %s, err: %s", condition, err)
@@ -749,7 +752,7 @@ func (d *DBcache)isExistPkey(condition string) (isTrue bool) {
 }
 
 //插入一行数据.
-func (d *DBcache)InsertRow(condition string) (n int64, err error) {
+func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	RowMap := new(sync.Map)
 	whereCondition, err := d.GetCondition(condition, ",")
 	if err != nil {
@@ -794,14 +797,14 @@ func (d *DBcache)InsertRow(condition string) (n int64, err error) {
 	d.DbCache.Store(PkeyValue, *RowMap)
 
 	switch d.TableConfig.CacheType {
-	case "array":   //数据保存于数组.
+	case "array": //数据保存于数组.
 		//插入用于分页查询缓存
 		d.rwMutex.Lock()
 		d.RowNumDbCache = append(d.RowNumDbCache, RowMap)
 		d.rwMutex.Unlock()
-	case "link":    //数据保存于链表
-		node :=&Node{
-			rowNum: d.LinkDbCache.length+1,
+	case "link": //数据保存于链表
+		node := &Node{
+			rowNum: d.LinkDbCache.length + 1,
 			pkey:   PkeyValue,
 			row:    RowMap,
 			pre:    nil,
@@ -813,7 +816,7 @@ func (d *DBcache)InsertRow(condition string) (n int64, err error) {
 }
 
 //插入一行数据到数据库.
-func (d *DBcache)InsertDbRow(condition string) (n int64, err error) {
+func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 	SqlStr := d.GetSqlStr(condition)
 	sqlString := "INSERT INTO " + d.TableConfig.GetTableName() + " SET " + SqlStr
 	if d.DataSyncConf.RealTime == true {
@@ -836,9 +839,9 @@ func (d *DBcache)InsertDbRow(condition string) (n int64, err error) {
 
 //(该函数仅于分页显示,提取数据)从缓存中,获取指定的行,开始行-结束行.(不包括结束行)并不是与数据库中行号一致.
 //因为从数据库中检索数据时,数据先后不一定.这只是缓存的行号.目的是一样.不影响使用.
-func (d *DBcache)GetRowBetween(start int, end int) (result []map[string]string) {
+func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string) {
 	switch d.TableConfig.CacheType {
-	case "array":   //数据保存于数组.
+	case "array": //数据保存于数组.
 		if start > len(d.RowNumDbCache) {
 			start = len(d.RowNumDbCache) - 1
 		}
@@ -866,9 +869,9 @@ func (d *DBcache)GetRowBetween(start int, end int) (result []map[string]string) 
 			})
 			result = append(result, row)
 		}
-	case "link":    //数据保存于链表
-		startInt64 :=int64(start)
-		endInt64:=int64(end)
+	case "link": //数据保存于链表
+		startInt64 := int64(start)
+		endInt64 := int64(end)
 		length := d.LinkDbCache.length
 		if startInt64 > length {
 			startInt64 = length
@@ -877,7 +880,7 @@ func (d *DBcache)GetRowBetween(start int, end int) (result []map[string]string) 
 			endInt64 = length
 		}
 		nodes := d.LinkDbCache.GetNodeBetween(startInt64, endInt64)
-		for _,node:= range nodes{
+		for _, node := range nodes {
 			row := make(map[string]string, len(nodes))
 			rowMap := node.row
 			rowMap.Range(func(column, value interface{}) bool {
@@ -890,8 +893,9 @@ func (d *DBcache)GetRowBetween(start int, end int) (result []map[string]string) 
 
 	return result
 }
+
 //关闭打开的对象
-func (d *DBcache)Close() {
+func (d *DBcache) Close() {
 	//关闭数据库对象
 	d.DbConn.Close()
 	//关闭异步同步文件对象.
