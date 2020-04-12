@@ -41,7 +41,8 @@ type DBcache struct {
 	RowNumDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
 	delRowNum     map[int]bool //保存RowNumDbCache中已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
 	RowCount      int64        //总行数
-	mutex         sync.RWMutex //读写锁
+	rwMutex       sync.RWMutex //读写锁
+	mutex 		  sync.Mutex   //互斥锁
 }
 
 func NewDBcache(db *sql.DB) *DBcache {
@@ -56,7 +57,7 @@ func NewDBcache(db *sql.DB) *DBcache {
 		RowNumDbCache: nil,
 		delRowNum:     make(map[int]bool),
 		RowCount:      0,
-		mutex:         sync.RWMutex{},
+		rwMutex:         sync.RWMutex{},
 	}
 }
 
@@ -308,12 +309,13 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 //(该函数仅于分页),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
 func (d *DBcache) delRowNumDbCache(pkeyValue string) {
 	//检查当保存删除的行容量,重新初始化RowNumDbCache
-	size := len(d.RowNumDbCache)
-	if size/2 == 0 {
+	if len(d.RowNumDbCache)/2 == 0 {
 		return
 	}
+
+	d.mutex.Lock()
+	size := len(d.RowNumDbCache)
 	if len(d.delRowNum) >= size/2 {
-		d.mutex.Lock()
 		d.RowNumDbCache = make([]*sync.Map, 0, size)
 		d.delRowNum = make(map[int]bool, size)
 		d.DbCache.Range(func(_, v interface{}) bool {
@@ -321,14 +323,15 @@ func (d *DBcache) delRowNumDbCache(pkeyValue string) {
 			d.RowNumDbCache = append(d.RowNumDbCache, &rowMap)
 			return true
 		})
-		d.mutex.Unlock()
+
 	}
+	d.mutex.Unlock()
 
 	n := d.getRowNum(pkeyValue)
 	if n != -1 {
-		d.mutex.Lock()
+		d.rwMutex.Lock()
 		d.delRowNum[n] = true
-		d.mutex.Unlock()
+		d.rwMutex.Unlock()
 	}
 }
 
@@ -793,9 +796,9 @@ func (d *DBcache)InsertRow(condition string) (n int64, err error) {
 	switch d.TableConfig.CacheType {
 	case "array":   //数据保存于数组.
 		//插入用于分页查询缓存
-		d.mutex.Lock()
+		d.rwMutex.Lock()
 		d.RowNumDbCache = append(d.RowNumDbCache, RowMap)
-		d.mutex.Unlock()
+		d.rwMutex.Unlock()
 	case "link":    //数据保存于链表
 		node :=&Node{
 			rowNum: d.LinkDbCache.length+1,
