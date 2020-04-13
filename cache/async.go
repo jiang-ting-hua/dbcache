@@ -163,3 +163,10 @@ func (d *DataSync) sendToAsyncChan(exeSql string) {
 		fmt.Println("Async sql output File,channel blocked")
 	}
 }
+
+//关闭打开的对象
+func (d *DataSync) Close() {
+	//关闭异步同步文件对象.
+	d.AsyncFileObj.Close()
+	d.AsyncFailedFileObj.Close()
+}

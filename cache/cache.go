@@ -45,10 +45,10 @@ type DBcache struct {
 	mutex         sync.Mutex   //互斥锁
 }
 
-func NewDBcache(db *sql.DB) *DBcache {
+func NewDBcache(db *sql.DB,table conf.Table) *DBcache {
 	return &DBcache{
 		DbConn:        db,
-		TableConfig:   conf.Table{},
+		TableConfig:   table,
 		ColumnInfo:    nil,
 		CacheType:     "array",
 		dataSync:      NewDataSync(),
@@ -63,10 +63,10 @@ func NewDBcache(db *sql.DB) *DBcache {
 }
 
 //初始化缓存信息
-func InitCache(db *sql.DB, ) (dbCache *DBcache, err error) {
-	dbCache = NewDBcache(db)
+func InitCache(db *sql.DB,table conf.Table ) (dbCache *DBcache, err error) {
+	dbCache = NewDBcache(db,table)
 	//读取配置文件,初始化配置信息
-	err = conf.ParseConf(conf.TABLES_CONF, &dbCache.TableConfig)
+	err = conf.ParseConf(conf.TABLES_CONF, dbCache.TableConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +268,7 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 	d.DbCache.Delete(Pkey)
 
 	//删除用于分页缓存中的数据
-	switch d.TableConfig.CacheType {
+	switch d.TableConfig.GetCacheType() {
 	case "array": //数据保存于数组.
 		d.delRowNumDbCache(Pkey)
 	case "link": //数据保存于链表
@@ -309,13 +309,13 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 //(该函数仅于分页),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
 func (d *DBcache) delRowNumDbCache(pkeyValue string) {
 	//检查当保存删除的行容量,重新初始化RowNumDbCache
-	if len(d.RowNumDbCache)/2 == 0 {
+	if len(d.RowNumDbCache) == 0 {
 		return
 	}
 
 	d.mutex.Lock()
 	size := len(d.RowNumDbCache)
-	if len(d.delRowNum) >= size/2 {
+	if len(d.delRowNum) > size/2 {
 		d.RowNumDbCache = make([]*sync.Map, 0, size)
 		d.delRowNum = make(map[int]bool, size)
 		d.DbCache.Range(func(_, v interface{}) bool {
@@ -796,7 +796,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	//插入缓存
 	d.DbCache.Store(PkeyValue, *RowMap)
 
-	switch d.TableConfig.CacheType {
+	switch d.TableConfig.GetCacheType() {
 	case "array": //数据保存于数组.
 		//插入用于分页查询缓存
 		d.rwMutex.Lock()
@@ -840,7 +840,7 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 //(该函数仅于分页显示,提取数据)从缓存中,获取指定的行,开始行-结束行.(不包括结束行)并不是与数据库中行号一致.
 //因为从数据库中检索数据时,数据先后不一定.这只是缓存的行号.目的是一样.不影响使用.
 func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string) {
-	switch d.TableConfig.CacheType {
+	switch d.TableConfig.GetCacheType() {
 	case "array": //数据保存于数组.
 		if start > len(d.RowNumDbCache) {
 			start = len(d.RowNumDbCache) - 1
@@ -896,9 +896,6 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 
 //关闭打开的对象
 func (d *DBcache) Close() {
-	//关闭数据库对象
-	d.DbConn.Close()
 	//关闭异步同步文件对象.
-	d.dataSync.AsyncFileObj.Close()
-	d.dataSync.AsyncFailedFileObj.Close()
+	d.dataSync.Close()
 }

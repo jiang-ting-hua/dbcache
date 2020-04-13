@@ -12,18 +12,21 @@ type DataSync struct {
 	MaxAsyncFileSize    int64  `conf:"max_async_file_size"`    //异步保存需要更新的SQL语句文件和失败,单个文件最大大小
 }
 
-//type Table interface {
-//	GetPkey() string
-//	GetTableName() string
-//	GetWhere() string
-//	GetOrther() string
-//	GetColumn() string
-//	GetColumns() []string
-//	PkeyIsIncrement() bool
-//}
+type Table interface {
+	GetPkey() string
+	GetTableName() string
+	GetWhere() string
+	GetOrther() string
+	GetColumn() string
+	GetColumns() []string
+	PkeyIsIncrement() bool
+	GetCacheType()string
+}
 
 //注意,配置文件cache.conf中的组名[Table]和结构名称一样.
-type Table struct {
+
+//数据库表Users
+type Users struct {
 	TableName         string `conf:"table_name"`          //缓存的表名
 	Columns           string `conf:"columns"`             //缓存的多列,以分号隔开
 	Pkey              string `conf:"pkey"`                //缓存表的主键
@@ -33,22 +36,22 @@ type Table struct {
 	CacheType         string   `conf:"cache_type"`          //缓存表,主键是否为自增列
 }
 
-func (u *Table) GetPkey() (Pkey string) {
+func (u *Users) GetPkey() (Pkey string) {
 	return u.Pkey
 }
-func (u *Table) GetTableName() (tableName string) {
+func (u *Users) GetTableName() (tableName string) {
 	return u.TableName
 }
-func (u *Table) GetWhere() (where string) {
+func (u *Users) GetWhere() (where string) {
 	return u.Where
 }
-func (u *Table) GetOrther() (where string) {
+func (u *Users) GetOrther() (where string) {
 	return u.Orther
 }
-func (u *Table) GetColumn() (Columns string) {
+func (u *Users) GetColumn() (Columns string) {
 	return u.Columns
 }
-func (u *Table) GetColumns() (Columns []string) {
+func (u *Users) GetColumns() (Columns []string) {
 	if u.Columns == "" {
 		return nil
 	}
@@ -58,6 +61,51 @@ func (u *Table) GetColumns() (Columns []string) {
 	}
 	return Columns
 }
-func (u *Table) PkeyIsIncrement() (isIncrement bool) {
+func (u *Users) PkeyIsIncrement() (isIncrement bool) {
 	return u.PkeyAutoIncrement
+}
+func (u *Users) GetCacheType()(cacheType string) {
+	return u.CacheType
+}
+//数据库表Goods
+type Goods struct {
+	TableName         string `conf:"table_name"`          //缓存的表名
+	Columns           string `conf:"columns"`             //缓存的多列,以分号隔开
+	Pkey              string `conf:"pkey"`                //缓存表的主键
+	Where             string `conf:"where"`               //缓存表,取数据时,加的where条件.
+	Orther            string `conf:"orther"`              //缓存表,取数据时,按条件排序.
+	PkeyAutoIncrement bool   `conf:"pkey_auto_increment"` //缓存表,主键是否为自增列
+	CacheType         string   `conf:"cache_type"`          //缓存表,主键是否为自增列
+}
+
+func (u *Goods) GetPkey() (Pkey string) {
+	return u.Pkey
+}
+func (u *Goods) GetTableName() (tableName string) {
+	return u.TableName
+}
+func (u *Goods) GetWhere() (where string) {
+	return u.Where
+}
+func (u *Goods) GetOrther() (where string) {
+	return u.Orther
+}
+func (u *Goods) GetColumn() (Columns string) {
+	return u.Columns
+}
+func (u *Goods) GetColumns() (Columns []string) {
+	if u.Columns == "" {
+		return nil
+	}
+	Columns = strings.Split(u.Columns, ",")
+	for i, _ := range Columns {
+		Columns[i] = strings.TrimSpace(Columns[i])
+	}
+	return Columns
+}
+func (u *Goods) PkeyIsIncrement() (isIncrement bool) {
+	return u.PkeyAutoIncrement
+}
+func (u *Goods) GetCacheType()(cacheType string) {
+	return u.CacheType
 }
