@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-type DataSync struct {
-	DataSyncConf       conf.DataSync  //[配置文件cache.conf]保存数据库数据同步.是实时还是异步.
+type DataAsync struct {
+	DataAsyncConf      conf.DataAsync //[配置文件cache.conf]保存数据库数据异步信息.
 	AsyncSqlchan       chan *AsyncSql //异步数据库同步管道
 	AsyncFileObj       *os.File       //异步数据库同步,保存需要更新的SQL语句文件对象.
 	AsyncFailedFileObj *os.File       //异步数据库同步,保存失败的需要更新的SQL语句文件对象.
@@ -24,9 +24,9 @@ type AsyncSql struct {
 	isFinish  bool   //是否完成.
 }
 
-func NewDataSync() *DataSync {
-	return &DataSync{
-		DataSyncConf:       conf.DataSync{},
+func NewDatAsync() *DataAsync {
+	return &DataAsync{
+		DataAsyncConf:      conf.DataAsync{},
 		AsyncSqlchan:       nil,
 		AsyncFileObj:       nil,
 		AsyncFailedFileObj: nil,
@@ -34,25 +34,25 @@ func NewDataSync() *DataSync {
 }
 
 //初始化异步同步信息.
-func InitAsync(db *sql.DB,d *DataSync,tableName string) (err error) {
+func (d *DataAsync) InitAsync(db *sql.DB, tableName string) (err error) {
 	//读取配置文件,数据库异步同步数据的信息.
-	err = conf.ParseConf(conf.TABLES_CONF, &d.DataSyncConf)
+	err = conf.ParseConf(conf.TABLES_CONF, &d.DataAsyncConf)
 	if err != nil {
 		return err
 	}
 	//初始化文件对象
-	d.AsyncFileObj, err = os.OpenFile(d.DataSyncConf.AsyncFilePath+tableName+"_"+d.DataSyncConf.AsyncFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	d.AsyncFileObj, err = os.OpenFile(d.DataAsyncConf.AsyncFilePath+tableName+"_"+d.DataAsyncConf.AsyncFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		err = fmt.Errorf("open async sql file failed, file name:%s, err:%v\n", d.DataSyncConf.AsyncFilePath+tableName+"_"+d.DataSyncConf.AsyncFileName, err)
+		err = fmt.Errorf("open async sql file failed, file name:%s, err:%v\n", d.DataAsyncConf.AsyncFilePath+tableName+"_"+d.DataAsyncConf.AsyncFileName, err)
 		return err
 	}
-	d.AsyncFailedFileObj, err = os.OpenFile(d.DataSyncConf.AsyncFilePath+tableName+"_"+d.DataSyncConf.AsyncFailedFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	d.AsyncFailedFileObj, err = os.OpenFile(d.DataAsyncConf.AsyncFilePath+tableName+"_"+d.DataAsyncConf.AsyncFailedFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		err = fmt.Errorf("open async sql failed file failed, file name:%s, err:%v\n", d.DataSyncConf.AsyncFilePath+tableName+"_"+d.DataSyncConf.AsyncFailedFileName, err)
+		err = fmt.Errorf("open async sql failed file failed, file name:%s, err:%v\n", d.DataAsyncConf.AsyncFilePath+tableName+"_"+d.DataAsyncConf.AsyncFailedFileName, err)
 		return err
 	}
 	//初始化管道.
-	d.AsyncSqlchan = make(chan *AsyncSql, d.DataSyncConf.AsyncMaxChan)
+	d.AsyncSqlchan = make(chan *AsyncSql, d.DataAsyncConf.AsyncMaxChan)
 	//后台异步同步数据
 	go d.backSyncSql(db)
 
@@ -60,7 +60,7 @@ func InitAsync(db *sql.DB,d *DataSync,tableName string) (err error) {
 }
 
 //后台同步数据库
-func (d *DataSync) backSyncSql(db *sql.DB) {
+func (d *DataAsync) backSyncSql(db *sql.DB) {
 	for {
 		//检查文件容量大小
 		if d.checkFileSize(d.AsyncFileObj) {
@@ -114,18 +114,18 @@ func (d *DataSync) backSyncSql(db *sql.DB) {
 }
 
 //检查文件大小
-func (d *DataSync) checkFileSize(file *os.File) bool {
+func (d *DataAsync) checkFileSize(file *os.File) bool {
 	fileInfo, err := file.Stat()
 	if err != nil {
 		err = fmt.Errorf("get async Sql file info failed, file name:%s, err:%v\n", file.Name(), err)
 		return false
 	}
 	//如果文件大于等于异步保存SQL文件最大值,返回真.
-	return fileInfo.Size() >= d.DataSyncConf.MaxAsyncFileSize*1024*1024
+	return fileInfo.Size() >= d.DataAsyncConf.MaxAsyncFileSize*1024*1024
 }
 
 //分割文件
-func (d *DataSync) splitFile(file *os.File) (newFile *os.File, err error) {
+func (d *DataAsync) splitFile(file *os.File) (newFile *os.File, err error) {
 	//获取原文件的信息
 	info, err := file.Stat()
 	if err != nil {
@@ -134,7 +134,7 @@ func (d *DataSync) splitFile(file *os.File) (newFile *os.File, err error) {
 	}
 	oldFileName := info.Name()
 	currentTime := time.Now().Format("20060102_150405")
-	logFileName := path.Join(d.DataSyncConf.AsyncFilePath, oldFileName)
+	logFileName := path.Join(d.DataAsyncConf.AsyncFilePath, oldFileName)
 	newPath := fmt.Sprintf("%s_%s.bak", logFileName, currentTime)
 
 	//关闭当前文件
@@ -151,7 +151,7 @@ func (d *DataSync) splitFile(file *os.File) (newFile *os.File, err error) {
 }
 
 //发送要执行的sql语句到管道.
-func (d *DataSync) sendToAsyncChan(exeSql string) {
+func (d *DataAsync) sendToAsyncChan(exeSql string) {
 	sqlTmp := &AsyncSql{
 		exeSql:    exeSql,
 		timestamp: time.Now().Format("2006-01-02 15-04-05"),
@@ -165,7 +165,7 @@ func (d *DataSync) sendToAsyncChan(exeSql string) {
 }
 
 //关闭打开的对象
-func (d *DataSync) Close() {
+func (d *DataAsync) Close() {
 	//关闭异步同步文件对象.
 	d.AsyncFileObj.Close()
 	d.AsyncFailedFileObj.Close()

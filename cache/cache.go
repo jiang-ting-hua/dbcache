@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 //数据库缓存表中列的信息
@@ -27,44 +28,42 @@ type columnInfo struct {
 
 type DBcache struct {
 	//基础配置信息
-	DbConn       *sql.DB                //数据库对象
-	TableConfig  conf.Table             //[配置文件cache.conf]保存缓存数据表信息
-	DataSyncConf conf.DataSync          //[配置文件cache.conf]保存数据库数据同步.是实时还是异步.
-	ColumnInfo   map[string]*columnInfo //数据库缓存表中列的信息
-	CacheType    string                 //缓存类型.array数组,link链表[用于页面分页显示]
-	dataSync     *DataSync
+	DbConn      *sql.DB                //数据库对象
+	TableConfig conf.Table             //[配置文件cache.conf]保存缓存数据表信息
+	ColumnInfo  map[string]*columnInfo //数据库缓存表中列的信息
+	CacheType   string                 //缓存类型.array数组,link链表[用于页面分页显示]
+	dataAsync   *DataAsync             //异步同步数据库对象
+
 	//map数据缓存对象[主缓存对象]
 	DbCache sync.Map //用来缓存的表数据
 	//链表缓存对象
 	LinkDbCache LinkCache //链表保存缓存数据[用于页面分页显示]
-	//链表缓存对象
-	RowNumDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
-	delRowNum     map[int]bool //保存RowNumDbCache中已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
-	RowCount      int64        //总行数
-	rwMutex       sync.RWMutex //读写锁
-	mutex         sync.Mutex   //互斥锁
+	//切片缓存对象
+	SliceDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
+	DelRowNum    map[int]bool //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+	RowCount     int64        //总行数
+	RwMutex      sync.RWMutex //读写锁
 }
 
-func NewDBcache(db *sql.DB,table conf.Table) *DBcache {
+func NewDBcache(db *sql.DB, table conf.Table) *DBcache {
 	return &DBcache{
-		DbConn:        db,
-		TableConfig:   table,
-		ColumnInfo:    nil,
-		CacheType:     "array",
-		dataSync:      NewDataSync(),
-		DbCache:       sync.Map{},
-		LinkDbCache:   NewLinkCache(),
-		RowNumDbCache: nil,
-		delRowNum:     make(map[int]bool),
-		RowCount:      0,
-		rwMutex:       sync.RWMutex{},
-		mutex:         sync.Mutex{},
+		DbConn:       db,
+		TableConfig:  table,
+		ColumnInfo:   nil,
+		CacheType:    "link",
+		dataAsync:    NewDatAsync(),
+		DbCache:      sync.Map{},
+		LinkDbCache:  NewLinkCache(),
+		SliceDbCache: nil,
+		DelRowNum:    make(map[int]bool),
+		RowCount:     0,
+		RwMutex:      sync.RWMutex{},
 	}
 }
 
 //初始化缓存信息
-func InitCache(db *sql.DB,table conf.Table ) (dbCache *DBcache, err error) {
-	dbCache = NewDBcache(db,table)
+func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
+	dbCache = NewDBcache(db, table)
 	//读取配置文件,初始化配置信息
 	err = conf.ParseConf(conf.TABLES_CONF, dbCache.TableConfig)
 	if err != nil {
@@ -101,9 +100,12 @@ func InitCache(db *sql.DB,table conf.Table ) (dbCache *DBcache, err error) {
 			return nil, err
 		}
 	}
-	dbCache.RowCount = count
-	dbCache.RowNumDbCache = make([]*sync.Map, count, count+count/2)
 
+	//判断用于分页查询的缓存类型.
+	if dbCache.TableConfig.GetCacheType() == "slice" || dbCache.TableConfig.GetCacheType() == "sliceNotDel" {
+		dbCache.RowCount = count
+		dbCache.SliceDbCache = make([]*sync.Map, count, count+count/2)
+	}
 	// 执行select查询,检索缓存数据
 	rows, err := db.Query(selectSql)
 	if err != nil {
@@ -195,25 +197,31 @@ func InitCache(db *sql.DB,table conf.Table ) (dbCache *DBcache, err error) {
 		}
 
 		dbCache.DbCache.Store(PkeyValue, *RowMap)
-		dbCache.RowNumDbCache[rowNum] = RowMap
-		node := &Node{
-			rowNum: rowNum,
-			pkey:   PkeyValue,
-			row:    RowMap,
-			pre:    nil,
-			next:   nil,
+
+		//判断用于分页查询的缓存类型.
+		switch dbCache.TableConfig.GetCacheType() {
+		case "slice", "sliceNotDel": //数据保存于切片
+			dbCache.SliceDbCache[rowNum] = RowMap
+		case "link": //数据保存于链表
+			node := &Node{
+				rowNum: rowNum,
+				pkey:   PkeyValue,
+				row:    RowMap,
+				pre:    nil,
+				next:   nil,
+			}
+			dbCache.LinkDbCache.InsertTail(node)
 		}
-		dbCache.LinkDbCache.InsertTail(node)
 		rowNum++ //行计数.
 	}
 	if err = rows.Err(); err != nil {
-		err = fmt.Errorf("InitCache(),从数据库中读取行失败: %s", err)
+		err = fmt.Errorf("InitCache(),从数据库中读取数据失败: %s", err)
 		return nil, err
 	}
-
+	dbCache.RowCount = rowNum
 	//判断是实时更新,还是后台异步同步数据库数据.
-	if dbCache.DataSyncConf.RealTime == false {
-		err := InitAsync(db, dbCache.dataSync, dbCache.TableConfig.GetTableName())
+	if dbCache.TableConfig.GetIsRealtime() == false {
+		err := dbCache.dataAsync.InitAsync(db, dbCache.TableConfig.GetTableName())
 		if err != nil {
 			err = fmt.Errorf("InitAsync(),初始化异步同步数据库失败: %s", err)
 			return nil, err
@@ -269,10 +277,15 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 
 	//删除用于分页缓存中的数据
 	switch d.TableConfig.GetCacheType() {
-	case "array": //数据保存于数组.
-		d.delRowNumDbCache(Pkey)
-	case "link": //数据保存于链表
-		d.LinkDbCache.DeleteNodePkey(Pkey)
+	case "slice": //缓存数据保存于切片
+		d.DelSliceDbCache(Pkey)
+	case "sliceNotDel": //缓存数据保存于切片,但不真的删除,只记录行号
+		d.DelSliceDbCacheRecord(Pkey)
+	case "link": //缓存数据保存于链表
+		ok := d.LinkDbCache.DeleteNodePkey(Pkey)
+		if ok{
+			atomic.AddInt64(&d.RowCount,-1)
+		}
 	}
 	return n, err
 }
@@ -288,7 +301,7 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 		sqlString = "DELETE from " + d.TableConfig.GetTableName() + " where " + d.TableConfig.GetPkey() + "='" + key + "'"
 	}
 	//判断是实时更新,还是异步更新
-	if d.DataSyncConf.RealTime == true {
+	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {
 			err = fmt.Errorf("DelDbRow(),删除行数据失败,行主键(%s),err : %s", key, err)
@@ -301,58 +314,86 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 		}
 		return n, err
 	} else {
-		d.dataSync.sendToAsyncChan(sqlString)
+		d.dataAsync.sendToAsyncChan(sqlString)
 	}
 	return 0, nil
 }
 
-//(该函数仅于分页),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
-func (d *DBcache) delRowNumDbCache(pkeyValue string) {
-	//检查当保存删除的行容量,重新初始化RowNumDbCache
-	if len(d.RowNumDbCache) == 0 {
+//缓存类型是slice切片
+//(该函数仅于分页查询),删除切片中的数据
+func (d *DBcache) DelSliceDbCache(pkeyValue string) {
+	//检查当保存删除的行容量,重新初始化SliceDbCache
+	if len(d.SliceDbCache) == 0 {
 		return
 	}
 
-	d.mutex.Lock()
-	size := len(d.RowNumDbCache)
-	if len(d.delRowNum) > size/2 {
-		d.RowNumDbCache = make([]*sync.Map, 0, size)
-		d.delRowNum = make(map[int]bool, size)
-		d.DbCache.Range(func(_, v interface{}) bool {
-			rowMap := v.(sync.Map)
-			d.RowNumDbCache = append(d.RowNumDbCache, &rowMap)
-			return true
-		})
-	}
-	d.mutex.Unlock()
-
-	n := d.getRowNum(pkeyValue)
+	n := d.GetRowNum(pkeyValue)
 	if n != -1 {
-		d.rwMutex.Lock()
-		d.delRowNum[n] = true
-		d.rwMutex.Unlock()
+		d.RwMutex.Lock()
+		d.SliceDbCache = append(d.SliceDbCache[:n], d.SliceDbCache[n+1:]...)
+		d.RwMutex.Unlock()
+		atomic.AddInt64(&d.RowCount,-1)
 	}
 }
 
-//(该函数仅于分页显示,提取数据),获取用于分页缓存中数据的行号
-func (d *DBcache) getRowNum(pkeyValue string) (n int) {
+//缓存类型是slice切片
+//(该函数仅于分页查询),获取用于分页缓存中数据的行号
+func (d *DBcache) GetRowNum(pkeyValue string) (n int) {
 	pkeyValue = strings.TrimSpace(pkeyValue)
-	var isFound bool
-	for i := 0; i < len(d.RowNumDbCache); i++ {
-		if d.delRowNum[i] {
-			continue
-		}
-
-		rowMap := *d.RowNumDbCache[i]
-		isFound = false
-		rowMap.Range(func(column, value interface{}) bool {
-			if column.(string) == d.TableConfig.GetPkey() && value.(string) == pkeyValue {
-				isFound = true
+	for i, rowMap := range d.SliceDbCache {
+		value, ok := rowMap.Load(pkeyValue)
+		if ok {
+			if value.(string) == pkeyValue {
+				return i
 			}
+		}
+	}
+	return -1
+}
+
+//缓存类型是sliceNotDel切片(不删除,只记录)
+// (该函数仅于分页查询),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+func (d *DBcache) DelSliceDbCacheRecord(pkeyValue string) {
+	//检查当保存删除的行容量,重新初始化SliceDbCache
+	if len(d.SliceDbCache) == 0 {
+		return
+	}
+
+	d.RwMutex.Lock()
+	size := len(d.SliceDbCache)
+	if len(d.DelRowNum) > size/2 {
+		d.SliceDbCache = make([]*sync.Map, 0, size)
+		d.DelRowNum = make(map[int]bool, size)
+		d.DbCache.Range(func(_, v interface{}) bool {
+			rowMap := v.(sync.Map)
+			d.SliceDbCache = append(d.SliceDbCache, &rowMap)
 			return true
 		})
-		if isFound {
-			return i
+	}
+	d.RwMutex.Unlock()
+
+	n := d.GetRowNumRecord(pkeyValue)
+	if n != -1 {
+		d.RwMutex.RLock()
+		d.DelRowNum[n] = true
+		d.RwMutex.RUnlock()
+		atomic.AddInt64(&d.RowCount,-1)
+	}
+}
+
+//缓存类型是sliceNotDel切片(不删除,只记录)
+//(该函数仅于分页查询),获取用于分页缓存中数据的行号
+func (d *DBcache) GetRowNumRecord(pkeyValue string) (n int) {
+	pkeyValue = strings.TrimSpace(pkeyValue)
+	for i, rowMap := range d.SliceDbCache {
+		if d.DelRowNum[i] {
+			continue
+		}
+		value, ok := rowMap.Load(pkeyValue)
+		if ok {
+			if value.(string) == pkeyValue {
+				return i
+			}
 		}
 	}
 	return -1
@@ -625,7 +666,7 @@ func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n in
 		sqlString = "UPDATE " + d.TableConfig.GetTableName() + " SET " + column + "='" + value + "' WHERE " + d.TableConfig.GetPkey() + "='" + Pkey + "'"
 	}
 	//判断是实时更新,还是异步更新
-	if d.DataSyncConf.RealTime == true {
+	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {
 			err = fmt.Errorf("UpdateDbcolumn(),更新行数据失败,主键: %s 列名: %s 列值: %s ", Pkey, column, value)
@@ -638,7 +679,7 @@ func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n in
 		}
 		return n, err
 	} else {
-		d.dataSync.sendToAsyncChan(sqlString)
+		d.dataAsync.sendToAsyncChan(sqlString)
 	}
 	return 0, nil
 }
@@ -694,7 +735,7 @@ func (d *DBcache) UpdateDbcolumns(Pkey string, condition string) (n int64, err e
 
 	SqlStr := d.GetSqlStr(condition)
 	sqlString := "UPDATE " + d.TableConfig.GetTableName() + " SET " + SqlStr + " WHERE " + d.TableConfig.GetPkey() + "='" + Pkey + "'"
-	if d.DataSyncConf.RealTime == true {
+	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {
 			err = fmt.Errorf("UpdateDbcolumns(),更新行数据失败,行主键: %s, err: %s", Pkey, err)
@@ -707,7 +748,7 @@ func (d *DBcache) UpdateDbcolumns(Pkey string, condition string) (n int64, err e
 		}
 		return n, err
 	} else {
-		d.dataSync.sendToAsyncChan(sqlString)
+		d.dataAsync.sendToAsyncChan(sqlString)
 	}
 	return 0, nil
 }
@@ -797,11 +838,11 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	d.DbCache.Store(PkeyValue, *RowMap)
 
 	switch d.TableConfig.GetCacheType() {
-	case "array": //数据保存于数组.
+	case "array", "sliceNotDel": //数据保存于数组.
 		//插入用于分页查询缓存
-		d.rwMutex.Lock()
-		d.RowNumDbCache = append(d.RowNumDbCache, RowMap)
-		d.rwMutex.Unlock()
+		d.RwMutex.Lock()
+		d.SliceDbCache = append(d.SliceDbCache, RowMap)
+		d.RwMutex.Unlock()
 	case "link": //数据保存于链表
 		node := &Node{
 			rowNum: d.LinkDbCache.length + 1,
@@ -819,7 +860,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 	SqlStr := d.GetSqlStr(condition)
 	sqlString := "INSERT INTO " + d.TableConfig.GetTableName() + " SET " + SqlStr
-	if d.DataSyncConf.RealTime == true {
+	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {
 			err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %s", sqlString, err)
@@ -832,7 +873,7 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 		}
 		return n, err
 	} else {
-		d.dataSync.sendToAsyncChan(sqlString)
+		d.dataAsync.sendToAsyncChan(sqlString)
 	}
 	return 0, nil
 }
@@ -841,28 +882,45 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 //因为从数据库中检索数据时,数据先后不一定.这只是缓存的行号.目的是一样.不影响使用.
 func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string) {
 	switch d.TableConfig.GetCacheType() {
-	case "array": //数据保存于数组.
-		if start > len(d.RowNumDbCache) {
-			start = len(d.RowNumDbCache) - 1
+	case "slice": //数据保存于slice切片.
+		if start > len(d.SliceDbCache) {
+			start = len(d.SliceDbCache) - 1
 		}
-		if end > len(d.RowNumDbCache) {
-			end = len(d.RowNumDbCache)
+		if end > len(d.SliceDbCache) {
+			end = len(d.SliceDbCache)
+		}
+		for i := start; i < end; i++ {
+			row := make(map[string]string, end-start)
+			rowMap := *d.SliceDbCache[i]
+			rowMap.Range(func(column, value interface{}) bool {
+				row[column.(string)] = value.(string)
+				return true
+			})
+			result = append(result, row)
+		}
+
+	case "sliceNotDel": //数据保存于sliceNotDel切片(不删除,只记录)
+		if start > len(d.SliceDbCache) {
+			start = len(d.SliceDbCache) - 1
+		}
+		if end > len(d.SliceDbCache) {
+			end = len(d.SliceDbCache)
 		}
 		//获取start到end之间删除的行
 		var delRowCount int
-		for k, _ := range d.delRowNum {
+		for k, _ := range d.DelRowNum {
 			if k >= start && k < end {
 				delRowCount++
 			}
 		}
 
 		for i := start; i < end+delRowCount; i++ {
-			if d.delRowNum[i] {
+			if d.DelRowNum[i] {
 				continue
 			}
 
 			row := make(map[string]string, end-start)
-			rowMap := *d.RowNumDbCache[i]
+			rowMap := *d.SliceDbCache[i]
 			rowMap.Range(func(column, value interface{}) bool {
 				row[column.(string)] = value.(string)
 				return true
@@ -897,5 +955,5 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 //关闭打开的对象
 func (d *DBcache) Close() {
 	//关闭异步同步文件对象.
-	d.dataSync.Close()
+	d.dataAsync.Close()
 }
