@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 //数据库缓存表中列的信息
@@ -41,6 +42,7 @@ type DBcache struct {
 	//切片缓存对象
 	SliceDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
 	DelRowNum    map[int]bool //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+	initTag      uint32       //(缓存类型:SliceDbCache)用于当达到某种条件时,判断是否正在进行初始化.
 	RowCount     int64        //总行数
 	RwMutex      sync.RWMutex //读写锁
 }
@@ -56,6 +58,7 @@ func NewDBcache(db *sql.DB, table conf.Table) *DBcache {
 		LinkDbCache:  NewLinkCache(),
 		SliceDbCache: nil,
 		DelRowNum:    make(map[int]bool),
+		initTag:      0,
 		RowCount:     0,
 		RwMutex:      sync.RWMutex{},
 	}
@@ -195,13 +198,16 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 
 			RowMap.Store(columns[i], value)
 		}
-
+		//主缓存
 		dbCache.DbCache.Store(PkeyValue, *RowMap)
 
 		//判断用于分页查询的缓存类型.
 		switch dbCache.TableConfig.GetCacheType() {
-		case "slice", "sliceNotDel": //数据保存于切片
+		case "slice": //数据保存于切片
 			dbCache.SliceDbCache[rowNum] = RowMap
+		case "sliceNotDel"://数据保存于切片,但删除记录未真的删除,只是记录.
+			dbCache.SliceDbCache[rowNum] = RowMap
+			go dbCache.backCheckDelRowRecord()
 		case "link": //数据保存于链表
 			node := &Node{
 				rowNum: rowNum,
@@ -283,8 +289,8 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 		d.DelSliceDbCacheRecord(Pkey)
 	case "link": //缓存数据保存于链表
 		ok := d.LinkDbCache.DeleteNodePkey(Pkey)
-		if ok{
-			atomic.AddInt64(&d.RowCount,-1)
+		if ok {
+			atomic.AddInt64(&d.RowCount, -1)
 		}
 	}
 	return n, err
@@ -332,7 +338,7 @@ func (d *DBcache) DelSliceDbCache(pkeyValue string) {
 		d.RwMutex.Lock()
 		d.SliceDbCache = append(d.SliceDbCache[:n], d.SliceDbCache[n+1:]...)
 		d.RwMutex.Unlock()
-		atomic.AddInt64(&d.RowCount,-1)
+		atomic.AddInt64(&d.RowCount, -1)
 	}
 }
 
@@ -351,17 +357,12 @@ func (d *DBcache) GetRowNum(pkeyValue string) (n int) {
 	return -1
 }
 
-//缓存类型是sliceNotDel切片(不删除,只记录)
-// (该函数仅于分页查询),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
-func (d *DBcache) DelSliceDbCacheRecord(pkeyValue string) {
-	//检查当保存删除的行容量,重新初始化SliceDbCache
-	if len(d.SliceDbCache) == 0 {
-		return
-	}
-
-	d.RwMutex.Lock()
-	size := len(d.SliceDbCache)
-	if len(d.DelRowNum) > size/2 {
+//后台检查当保存删除的行容量,重新初始化SliceDbCache
+func (d *DBcache) backCheckDelRowRecord() {
+	time.Sleep(time.Second * 3600) //一小时检查一次.
+	if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
+		d.RwMutex.Lock()
+		size := len(d.SliceDbCache)
 		d.SliceDbCache = make([]*sync.Map, 0, size)
 		d.DelRowNum = make(map[int]bool, size)
 		d.DbCache.Range(func(_, v interface{}) bool {
@@ -369,15 +370,23 @@ func (d *DBcache) DelSliceDbCacheRecord(pkeyValue string) {
 			d.SliceDbCache = append(d.SliceDbCache, &rowMap)
 			return true
 		})
+		d.RwMutex.Unlock()
 	}
-	d.RwMutex.Unlock()
+}
+
+//缓存类型是sliceNotDel切片(不删除,只记录)
+// (该函数仅于分页查询),当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+func (d *DBcache) DelSliceDbCacheRecord(pkeyValue string) {
+	if len(d.SliceDbCache) == 0 {
+		return
+	}
 
 	n := d.GetRowNumRecord(pkeyValue)
 	if n != -1 {
 		d.RwMutex.RLock()
 		d.DelRowNum[n] = true
 		d.RwMutex.RUnlock()
-		atomic.AddInt64(&d.RowCount,-1)
+		atomic.AddInt64(&d.RowCount, -1)
 	}
 }
 
