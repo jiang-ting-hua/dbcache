@@ -42,7 +42,6 @@ type DBcache struct {
 	//切片缓存对象
 	SliceDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
 	DelRowNum    map[int]bool //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
-	initTag      uint32       //(缓存类型:SliceDbCache)用于当达到某种条件时,判断是否正在进行初始化.
 	RowCount     int64        //总行数
 	RwMutex      sync.RWMutex //读写锁
 }
@@ -58,7 +57,6 @@ func NewDBcache(db *sql.DB, table conf.Table) *DBcache {
 		LinkDbCache:  NewLinkCache(),
 		SliceDbCache: nil,
 		DelRowNum:    make(map[int]bool),
-		initTag:      0,
 		RowCount:     0,
 		RwMutex:      sync.RWMutex{},
 	}
@@ -205,7 +203,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		switch dbCache.TableConfig.GetCacheType() {
 		case "slice": //数据保存于切片
 			dbCache.SliceDbCache[rowNum] = RowMap
-		case "sliceNotDel"://数据保存于切片,但删除记录未真的删除,只是记录.
+		case "sliceNotDel": //数据保存于切片,但删除记录未真的删除,只是记录.
 			dbCache.SliceDbCache[rowNum] = RowMap
 			go dbCache.backCheckDelRowRecord()
 		case "link": //数据保存于链表
