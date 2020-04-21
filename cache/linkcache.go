@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-//总缓存数据
+//双链表缓存
 type LinkCache struct {
 	head   *Node
 	tail   *Node
@@ -13,7 +13,7 @@ type LinkCache struct {
 	mutex  *sync.RWMutex //读写锁
 }
 
-//新建一个双链表
+//新建一个双链表头.
 func NewLinkCache() (LinkCache) {
 	head := NewNode(0, "", nil)
 	return LinkCache{
@@ -191,7 +191,7 @@ func (l *LinkCache) GetAllNode() []*Node {
 }
 
 //插入一个节点到目的节点前面
-func (l *LinkCache) InsertValueBefore(dest *Node, node *Node) bool {
+func (l *LinkCache) InsertNodeBefore(dest *Node, node *Node) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	t := l.head
@@ -218,7 +218,7 @@ func (l *LinkCache) InsertValueBefore(dest *Node, node *Node) bool {
 }
 
 //插入一个节点到目的节点后面
-func (l *LinkCache) InsertValueAfter(dest *Node, node *Node) bool {
+func (l *LinkCache) InsertNodeAfter(dest *Node, node *Node) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	t := l.head
@@ -244,8 +244,8 @@ func (l *LinkCache) InsertValueAfter(dest *Node, node *Node) bool {
 
 }
 
-//插入一个节点到目的数据值前面
-func (l *LinkCache) InsertValueBeforeByValue(pkey interface{}, node *Node) bool {
+//根据主键,插入一个节点到目的主键数据值前面
+func (l *LinkCache) InsertNodeBeforeAtPkey(pkey interface{}, node *Node) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	t := l.head
@@ -271,8 +271,8 @@ func (l *LinkCache) InsertValueBeforeByValue(pkey interface{}, node *Node) bool 
 
 }
 
-//插入一个节点到目的数据值后面
-func (l *LinkCache) InsertValueAfterByValue(pkey interface{}, node *Node) bool {
+//根据主键,插入一个节点到目的主键数据值后面
+func (l *LinkCache) InsertNodeAfterAtPkey(pkey interface{}, node *Node) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	t := l.head
@@ -299,7 +299,7 @@ func (l *LinkCache) InsertValueAfterByValue(pkey interface{}, node *Node) bool {
 }
 
 //得到索引index的节点
-func (l *LinkCache) GetNodeAtIndex(index int64) *Node {
+func (l *LinkCache) GetIndexNode(index int64) *Node {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	if index > l.length-1 || index < 0 {
@@ -340,7 +340,7 @@ func (l *LinkCache) DeleteNode(node *Node) bool {
 }
 
 //删除一个节点,按照索引
-func (l *LinkCache) DeleteNodeAtIndex(index int64) bool {
+func (l *LinkCache) DeleteIndexNode(index int64) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if l.head == nil {
@@ -365,13 +365,13 @@ func (l *LinkCache) DeleteNodeAtIndex(index int64) bool {
 }
 
 //根据输入值,在链表中查找.
-func (l *LinkCache) FindString(input string)(out string) {
+func (l *LinkCache) FindString(Pkey string)(out string) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	t := l.head.next
 	//循环从头一直到尾部遍历
 	for t.next != nil {
-		if strings.Contains(t.pkey,input){
+		if strings.Contains(t.pkey,Pkey){
 			out=out+","
 		}
 		t = t.next

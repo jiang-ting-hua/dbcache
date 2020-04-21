@@ -32,7 +32,7 @@ type DBcache struct {
 	DbConn      *sql.DB                //数据库对象
 	TableConfig conf.Table             //[配置文件cache.conf]保存缓存数据表信息
 	ColumnInfo  map[string]*columnInfo //数据库缓存表中列的信息
-	CacheType   string                 //缓存类型.array数组,link链表[用于页面分页显示]
+	CacheType   string                 //用于分页查询,缓存类型:一.slice切片,二.sliceNotDel切片(不删除,只记录),三.link链表
 	dataAsync   *DataAsync             //异步同步数据库对象
 
 	//map数据缓存对象[主缓存对象]
@@ -40,10 +40,18 @@ type DBcache struct {
 	//链表缓存对象
 	LinkDbCache LinkCache //链表保存缓存数据[用于页面分页显示]
 	//切片缓存对象
-	SliceDbCache []*sync.Map  //用来根据行号查询缓存,[用于页面分页显示]
-	DelRowNum    map[int]bool //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
-	RowCount     int64        //总行数
-	RwMutex      sync.RWMutex //读写锁
+	SliceDbCache []*SliceCache //用来根据行号查询缓存,[用于页面分页显示]
+	DelRowNum    map[int]bool  //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+	RowCount     int64         //总行数
+	RwMutex      sync.RWMutex  //读写锁
+}
+
+//切片缓存数据
+type SliceCache struct {
+	Pkey       string    //主键值
+	SortColumn string    //排序列值
+	SortMode   string    //排列方式
+	RowMap     *sync.Map //数据库中行的数据
 }
 
 func NewDBcache(db *sql.DB, table conf.Table) *DBcache {
@@ -105,7 +113,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	//判断用于分页查询的缓存类型.
 	if dbCache.TableConfig.GetCacheType() == "slice" || dbCache.TableConfig.GetCacheType() == "sliceNotDel" {
 		dbCache.RowCount = count
-		dbCache.SliceDbCache = make([]*sync.Map, count, count+count/2)
+		dbCache.SliceDbCache = make([]*SliceCache, count, count+count/2)
 	}
 	// 执行select查询,检索缓存数据
 	rows, err := db.Query(selectSql)
@@ -157,6 +165,8 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		scanArgs[i] = &values[i]
 	}
 	var rowNum int64
+	sortColumn := dbCache.TableConfig.GetSortColumn()
+	sortMode := dbCache.TableConfig.GetSortMode()
 	// 按行取数据
 	for rows.Next() {
 		// 从数据中获得行数据,保存在scanArgs的MAP数据中
@@ -171,6 +181,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		//var RowMap sync.Map
 		RowMap := new(sync.Map)
 		PkeyValue := ""
+		sortColumnValue := ""
 		for i, columnValue := range values {
 			//columnType := GetColumnType(columns[i])
 			//如果数据库类型是字符串
@@ -193,7 +204,10 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 			if dbCache.TableConfig.GetPkey() == columns[i] {
 				PkeyValue = value
 			}
-
+			//取出排序列值
+			if sortColumn == columns[i] {
+				sortColumnValue = value
+			}
 			RowMap.Store(columns[i], value)
 		}
 		//主缓存
@@ -202,10 +216,22 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		//判断用于分页查询的缓存类型.
 		switch dbCache.TableConfig.GetCacheType() {
 		case "slice": //数据保存于切片
-			dbCache.SliceDbCache[rowNum] = RowMap
+			SliceData := &SliceCache{
+				Pkey:       PkeyValue,
+				SortColumn: sortColumnValue,
+				SortMode:   sortMode,
+				RowMap:     RowMap,
+			}
+			dbCache.SliceDbCache[rowNum] = SliceData
 		case "sliceNotDel": //数据保存于切片,但删除记录未真的删除,只是记录.
-			dbCache.SliceDbCache[rowNum] = RowMap
-			go dbCache.backCheckDelRowRecord()
+			SliceData := &SliceCache{
+				Pkey:       PkeyValue,
+				SortColumn: sortColumnValue,
+				SortMode:   sortMode,
+				RowMap:     RowMap,
+			}
+			dbCache.SliceDbCache[rowNum] = SliceData
+			go dbCache.backCheckDelRowRecord() //后台检查删除记录是否达到需要重新初始化
 		case "link": //数据保存于链表
 			node := &Node{
 				rowNum: rowNum,
@@ -231,6 +257,16 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 			return nil, err
 		}
 	}
+
+	//判断用于分页查询的缓存类型.初始化按指定列进行排序.
+	switch dbCache.TableConfig.GetCacheType() {
+	case "slice", "sliceNotDel": //数据保存于切片
+		//判断配置表中,是否指定了排序方式,如果没指定,则按升序排序
+		if dbCache.TableConfig.GetSortMode() == "" {
+			dbCache.SliceDbCache = InsertSortAsc(dbCache.SliceDbCache)
+		}
+	}
+
 	return dbCache, nil
 }
 
@@ -342,12 +378,21 @@ func (d *DBcache) DelSliceDbCache(pkeyValue string) {
 
 //缓存类型是slice切片
 //(该函数仅于分页查询),获取用于分页缓存中数据的行号
-func (d *DBcache) GetRowNum(pkeyValue string) (n int) {
+func (d *DBcache) GetRowNum(pkeyValue string) (i int) {
 	pkeyValue = strings.TrimSpace(pkeyValue)
-	for i, rowMap := range d.SliceDbCache {
-		value, ok := rowMap.Load(pkeyValue)
-		if ok {
-			if value.(string) == pkeyValue {
+	//如果是按主键列排序,则使用二分查找
+	if d.TableConfig.GetSortColumn() == d.TableConfig.GetPkey() {
+		switch d.TableConfig.GetSortMode() {
+		case "asc":
+			return BinarySearchAsc(d.SliceDbCache, pkeyValue)
+		case "desc":
+			return BinarySearchDesc(d.SliceDbCache, pkeyValue)
+		default:
+			return BinarySearchAsc(d.SliceDbCache, pkeyValue)
+		}
+	} else {
+		for i, sliceData := range d.SliceDbCache {
+			if sliceData.Pkey == pkeyValue {
 				return i
 			}
 		}
@@ -357,18 +402,46 @@ func (d *DBcache) GetRowNum(pkeyValue string) (n int) {
 
 //后台检查当保存删除的行容量,重新初始化SliceDbCache
 func (d *DBcache) backCheckDelRowRecord() {
-	time.Sleep(time.Second * 3600) //一小时检查一次.
-	if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
-		d.RwMutex.Lock()
-		size := len(d.SliceDbCache)
-		d.SliceDbCache = make([]*sync.Map, 0, size)
-		d.DelRowNum = make(map[int]bool, size)
-		d.DbCache.Range(func(_, v interface{}) bool {
-			rowMap := v.(sync.Map)
-			d.SliceDbCache = append(d.SliceDbCache, &rowMap)
-			return true
-		})
-		d.RwMutex.Unlock()
+	for {
+		time.Sleep(time.Second * 3600) //一小时检查一次.
+		hour := time.Now().Hour()
+		//晚上1点到5点之间检查和初始化
+		if hour >= 1 && hour <= 5 {
+			if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
+				d.RwMutex.Lock()
+				size := len(d.SliceDbCache)
+				d.SliceDbCache = make([]*SliceCache, 0, size)
+				d.DelRowNum = make(map[int]bool, size)
+				pkey := d.TableConfig.GetPkey()
+				sortColumn := d.TableConfig.GetSortColumn()
+				sortMode := d.TableConfig.GetSortMode()
+				d.DbCache.Range(func(k, v interface{}) bool {
+					rowMap := v.(sync.Map)
+					pkeyValue := k.(string)
+					var sortColumnValue string
+					//如果主键是排序列
+					if pkey == sortColumn {
+						sortColumnValue = pkeyValue
+					} else { //如果不是主键为排序列,则还要在rowMap中取排序列的值
+						Value, ok := rowMap.Load(sortColumn)
+						if ok {
+							sortColumnValue = Value.(string)
+						} else {
+							sortColumnValue = pkeyValue
+						}
+					}
+					SliceData := &SliceCache{
+						Pkey:       pkeyValue,
+						SortColumn: sortColumnValue,
+						SortMode:   sortMode,
+						RowMap:     &rowMap,
+					}
+					d.SliceDbCache = append(d.SliceDbCache, SliceData)
+					return true
+				})
+				d.RwMutex.Unlock()
+			}
+		}
 	}
 }
 
@@ -390,17 +463,50 @@ func (d *DBcache) DelSliceDbCacheRecord(pkeyValue string) {
 
 //缓存类型是sliceNotDel切片(不删除,只记录)
 //(该函数仅于分页查询),获取用于分页缓存中数据的行号
-func (d *DBcache) GetRowNumRecord(pkeyValue string) (n int) {
+func (d *DBcache) GetRowNumRecord(pkeyValue string) (i int) {
 	pkeyValue = strings.TrimSpace(pkeyValue)
-	for i, rowMap := range d.SliceDbCache {
-		if d.DelRowNum[i] {
-			continue
+	i = -1
+	//如果是按主键列排序,则使用二分查找
+	if d.TableConfig.GetSortColumn() == d.TableConfig.GetPkey() {
+		switch d.TableConfig.GetSortMode() {
+		case "asc":
+			i = BinarySearchAsc(d.SliceDbCache, pkeyValue)
+		case "desc":
+			i = BinarySearchDesc(d.SliceDbCache, pkeyValue)
+		default:
+			i = BinarySearchAsc(d.SliceDbCache, pkeyValue)
 		}
-		value, ok := rowMap.Load(pkeyValue)
-		if ok {
-			if value.(string) == pkeyValue {
+		//找到,还要在保存删除行号记录中查找
+		if i != -1  {
+			if d.DelRowNum[i] {
+				return -1
+			} else {
 				return i
 			}
+		}
+	} else {
+		for i, sliceData := range d.SliceDbCache {
+			if d.DelRowNum[i] {
+				continue
+			}
+			if sliceData.Pkey == pkeyValue {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (d *DBcache) GetRowNumRecord2(pkeyValue string) (i int) {
+	i = d.GetRowNum(pkeyValue)
+	if i == -1 {
+		return -1
+	} else {
+		//找到,还要在保存删除行号记录中查找
+		if d.DelRowNum[i] {
+			return -1
+		} else {
+			return i
 		}
 	}
 	return -1
@@ -801,7 +907,9 @@ func (d *DBcache) isExistPkey(condition string) (isTrue bool) {
 
 //插入一行数据.
 func (d *DBcache) InsertRow(condition string) (n int64, err error) {
-	RowMap := new(sync.Map)
+	rowMap := new(sync.Map)
+	sortColumn := d.TableConfig.GetSortColumn()
+	sortMode := d.TableConfig.GetSortMode()
 	whereCondition, err := d.GetCondition(condition, ",")
 	if err != nil {
 		err = fmt.Errorf("InsertRow(),获取条件错误. err: %s", err)
@@ -811,15 +919,21 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	//如果是自增列，则不需要主键．
 	Pkey := d.TableConfig.GetPkey()
 	var PkeyValue string
+	var sortColumnValue string
 	isPkey := false
 	for _, condition := range whereCondition {
 		//将插入的行数据保存于缓存中
-		RowMap.Store(condition[0], condition[2])
+		rowMap.Store(condition[0], condition[2])
 		//判断是否有主键
 		if condition[0] == Pkey {
 			PkeyValue = condition[2]
 			isPkey = true
 		}
+		//取排序列的值
+		if condition[0] == sortColumn {
+			sortColumnValue = condition[2]
+		}
+
 		//判断是否为空
 		colInfo, ok := d.ColumnInfo[condition[0]]
 		if ok {
@@ -842,22 +956,82 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		return 0, err
 	}
 	//插入缓存
-	d.DbCache.Store(PkeyValue, *RowMap)
+	d.DbCache.Store(PkeyValue, *rowMap)
 
+	//插入用于分页查询的缓存
 	switch d.TableConfig.GetCacheType() {
-	case "array", "sliceNotDel": //数据保存于数组.
+	case "slice": //数据保存于切片.
 		//插入用于分页查询缓存
 		d.RwMutex.Lock()
-		d.SliceDbCache = append(d.SliceDbCache, RowMap)
+		SliceData := &SliceCache{
+			Pkey:       PkeyValue,
+			SortColumn: sortColumnValue,
+			SortMode:   sortMode,
+			RowMap:     rowMap,
+		}
+		index := -1
+		switch d.TableConfig.GetSortMode() {
+		case "asc":
+			index = BinarySearchAsc(d.SliceDbCache, sortColumnValue)
+			if index == -1  {
+				//当是升序排序时,如果没找到,判断是不是比第1个还小,如果还小,则插入到最前面
+				if sortColumnValue<d.SliceDbCache[0].SortColumn{
+					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData},d.SliceDbCache[0:]...)...)
+				}else{
+					d.SliceDbCache = append(d.SliceDbCache, SliceData)
+				}
+			}else{
+				d.SliceDbCache = append(d.SliceDbCache[:n], append([]*SliceCache{SliceData},d.SliceDbCache[n:]...)...)
+			}
+		case "desc":
+			index = BinarySearchDesc(d.SliceDbCache, sortColumnValue)
+			if index == -1  {
+				//当是降序排序时,如果没找到,判断是不是比第1个还大,如果还大,则插入到最前面
+				if sortColumnValue>d.SliceDbCache[0].SortColumn{
+					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData},d.SliceDbCache[0:]...)...)
+				}else{
+					d.SliceDbCache = append(d.SliceDbCache, SliceData)
+				}
+			}else{
+				d.SliceDbCache = append(d.SliceDbCache[:index], append([]*SliceCache{SliceData},d.SliceDbCache[index:]...)...)
+			}
+		default:
+			//如果未排序,则追加到最后.
+			d.SliceDbCache = append(d.SliceDbCache, SliceData)
+			//for i,v:=range d.SliceDbCache{
+			//	if v.SortColumn==sortColumnValue{
+			//		index=i
+			//		break
+			//	}
+			//}
+			//if index == -1 {
+			//	d.SliceDbCache = append(d.SliceDbCache, SliceData)
+			//}else{
+			//	d.SliceDbCache = append(d.SliceDbCache[:index], append([]*SliceCache{SliceData},d.SliceDbCache[index:]...)...)
+			//}
+		}
+		d.RwMutex.Unlock()
+	case "sliceNotDel": //数据保存于切片,但不删除
+		//插入用于分页查询缓存
+		d.RwMutex.Lock()
+		SliceData := &SliceCache{
+			Pkey:       PkeyValue,
+			SortColumn: sortColumnValue,
+			SortMode:   sortMode,
+			RowMap:     rowMap,
+		}
+		//只是追加,保证切片的行号不变.
+		d.SliceDbCache = append(d.SliceDbCache, SliceData)
 		d.RwMutex.Unlock()
 	case "link": //数据保存于链表
 		node := &Node{
 			rowNum: d.LinkDbCache.length + 1,
 			pkey:   PkeyValue,
-			row:    RowMap,
+			row:    rowMap,
 			pre:    nil,
 			next:   nil,
 		}
+		//插入到最后.
 		d.LinkDbCache.InsertTail(node)
 	}
 	return i, nil
@@ -898,7 +1072,7 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 		}
 		for i := start; i < end; i++ {
 			row := make(map[string]string, end-start)
-			rowMap := *d.SliceDbCache[i]
+			rowMap := *d.SliceDbCache[i].RowMap
 			rowMap.Range(func(column, value interface{}) bool {
 				row[column.(string)] = value.(string)
 				return true
@@ -927,7 +1101,7 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 			}
 
 			row := make(map[string]string, end-start)
-			rowMap := *d.SliceDbCache[i]
+			rowMap := *d.SliceDbCache[i].RowMap
 			rowMap.Range(func(column, value interface{}) bool {
 				row[column.(string)] = value.(string)
 				return true
