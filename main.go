@@ -49,80 +49,88 @@ func main() {
 	logs.InitLog()
 	defer logs.Close()
 
+
 	//连接数据库,初始化调用.
 	db, err := db.ConnectDB()
 	if err != nil {
-		logs.Fatal("a", "dbcache.ConnectDB().连接数据库失败, err: %s", err)
+		logs.Fatal("a", "连接数据库失败, err: %s", err)
 		return
 	}
 	defer db.Close()
 
-	//初始化需要缓存的数据,&conf.Users{}是conf包配置的数据库users表的结构体.
+
+	//缓存users表
 	UsersCache, err := cache.InitCache(db, &conf.Users{})
 	if err != nil {
-		logs.Fatal("a", "dbcache.InitCache().初始化缓存失败, err: %s", err)
+		logs.Fatal("a", "初始化缓存失败, err: %s", err)
 		return
 	}
 	defer UsersCache.Close()
 
-	//初始化需要缓存的数据,&conf.Goods{}是conf包配置的数据库Goods表的结构体.
+
+	//缓存Goods表
 	GoodsCache, err := cache.InitCache(db, &conf.Goods{})
 	if err != nil {
-		logs.Fatal("a", "dbcache.InitCache().初始化缓存失败, err: %s", err)
+		logs.Fatal("a", "初始化缓存失败, err: %s", err)
 		return
 	}
 	defer GoodsCache.Close()
 
+
 	// 以下为users表增删改查的样例.
 	//----------------------------------------------------------------------
+
 	//一. GetRow:根据主键值,取得该行数据
 	fmt.Println("一. GetRow().根据主键,取得该行数据.")
 	pkey := "00YS0SW2N4NT7K8HP13E"
 	result, err := UsersCache.GetRow(pkey)
 	if err != nil {
-		fmt.Println("一. GetRow().根据主键,取得该行数据错误, err:", err)
+		fmt.Println( err)
 	}
 	for k, v := range result {
 		fmt.Printf("%s=%s, ", k, v)
 	}
-	fmt.Println()
-	fmt.Println()
+
+
 
 	//二. GetColumn:根据主键,取得某列的数据
 	fmt.Println("二. GetColumn().根据主键,取得某列的数据")
 	v, err := UsersCache.GetColumn("00YS0SW2N4NT7K8HP13E", "name")
 	if err != nil {
-		fmt.Println("二. GetColumn().根据主键,取得某列的数据错误, err:", err)
+		fmt.Println( err)
 	}
 	fmt.Println("根据主键，取得某列的数据: ", v)
-	fmt.Println()
+
+
 
 	//三. DelRow:根据主键,删除该行数据
 	fmt.Printf("三. DelRow().根据主键,删除该行数据\n")
 	pkey = "013CIHW1G6HX8D6Q4H1Q"
 	n, err := UsersCache.DelRow(pkey)
 	if err != nil {
-		logs.Info("a", "三. DelRow().根据主键,删除该行数据错误:%d行,主键:%s,  err:", n, pkey, err)
+		logs.Info("a", "根据主键,删除行数据失败, err: %s", err)
 	}
-	fmt.Printf("三. 根据主键,删除行数据,数据库影响%d行,如果是异步执行为0.\n", n)
-	fmt.Println()
+	fmt.Println("删除数据行数:",n)
+
+
 
 	//四. GetWhere:根据where条件,查询缓存中所有符合条件的行.不用加引号
 	fmt.Println("四. 根据where条件,查询缓存中所有符合条件的行.")
 	var value []map[string]string
 	//value ,_ = dbcache.GetWhere("name=AFA5Y9FB or password=Q80BJT")
-	value, err = UsersCache.GetWhere("address=重庆2 and password=666")
+	value, err = UsersCache.GetWhere("address=重庆 and password=666")
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Printf("    查询到符合条件的有%d行:\n", len(value))
+	fmt.Printf("查询到符合条件的有%d行:\n", len(value))
 	for _, c := range value {
 		for k, v := range c {
 			fmt.Printf("%s=%s,", k, v)
 		}
 		fmt.Println()
 	}
-	fmt.Println()
+
+
 
 	//五. UpdateColumn:根据主键,更新一列
 	fmt.Println("五. UpdateColumn().根据主键,更新一列数据")
@@ -131,10 +139,10 @@ func main() {
 	val := "王明99"
 	n, err = UsersCache.UpdateColumn(pkey, col, val)
 	if err != nil {
-		logs.Error("a", "五. UpdateColumn().更新一列错误, err: %s", err)
+		logs.Error("a", "更新一列错误, err: %s", err)
 	}
-	fmt.Printf("三. 根据主键,更新一列数据,数据库影响%d行,如果是异步执行为0.\n", n)
-	fmt.Println()
+
+
 
 	//六. UpdateColumns:根据主键,更新多列
 	fmt.Printf("六. UpdateColumns().根据主键,更新多列数据:\n")
@@ -142,19 +150,20 @@ func main() {
 	cols := "age=111,address= 重庆111"
 	n, err = UsersCache.UpdateColumns(pkey, cols)
 	if err != nil {
-		logs.Error("a", "六. UpdateColumns().更新多列错误, err:%s", err)
+		logs.Error("a", "更新多列错误, err:%s", err)
 	}
-	fmt.Printf("三. 根据主键,更新多列数据,数据库影响%d行,如果是异步执行为0.\n", n)
-	fmt.Println()
+
+
 
 	//七. InsertRow():插入一行数据
 	fmt.Printf("七. InsertRow().插入一行数据\n")
-	insert := "uid=22111111,name=jth,address=重庆,password=888888,age=33,price=66.123456,create_date=2020-02-02 02:02:02,update_date=2020-01-01 01:01:01"
+	insert := "uid=2222222227,name=jth,address=重庆,password=888888,age=99999997,price=66.123456,create_date=2020-02-02 02:02:02,update_date=2020-01-01 01:01:01"
 	n, err = UsersCache.InsertRow(insert)
 	if err != nil {
-		logs.Error("a", "七. InsertRow().插入错误, err:%s", err)
+		logs.Error("a", "插入错误, err:%s", err)
 	}
-	fmt.Printf("三. 插入一行数据,数据库影响%d行,如果是异步执行为0.\n", n)
+
+
 
 	//八,GetRowNum():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
 	fmt.Printf("八,GetRowNum():获取缓存中,start行到end行之间的数据.\n")
@@ -167,6 +176,7 @@ func main() {
 		fmt.Println()
 	}
 
+
 	//Goods表----------------------------------------------------------
 	fmt.Println("以下是对Goods表操作.")
 	rows = GoodsCache.GetRowBetween(0, 10)
@@ -177,6 +187,7 @@ func main() {
 		}
 		fmt.Println()
 	}
+
 
 	time.Sleep(time.Second * 3)
 }

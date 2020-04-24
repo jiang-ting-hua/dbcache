@@ -7,6 +7,8 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"reflect"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -102,10 +104,10 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	err = row.Scan(&count)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			err = fmt.Errorf("InitCache(),从数据库中查询总行数,查询的结果为空: %s", err)
+			err = fmt.Errorf("InitCache(),Query the total number of rows, the result is empty, err: %s", err)
 			return nil, err
 		} else {
-			err = fmt.Errorf("InitCache(),从数据库中查询总行数失败: %s", err)
+			err = fmt.Errorf("InitCache(),The query for total rows failed, err: %s", err)
 			return nil, err
 		}
 	}
@@ -118,20 +120,20 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	// 执行select查询,检索缓存数据
 	rows, err := db.Query(selectSql)
 	if err != nil {
-		err = fmt.Errorf("InitCache(),执行select查询,检索数据时失败: %s", err)
+		err = fmt.Errorf("InitCache(),Failed to retrieve data, err: %s", err)
 		return nil, err
 	}
 	defer rows.Close()
 	// 得到列名
 	columns, err := rows.Columns()
 	if err != nil {
-		err = fmt.Errorf("InitCache(),从数据库中得到列名时失败: %s", err)
+		err = fmt.Errorf("InitCache(),Failed to get column names, err: %s", err)
 		return nil, err
 	}
 	// 得到列类型信息
 	types, err := rows.ColumnTypes()
 	if err != nil {
-		err = fmt.Errorf("InitCache(),从数据库中得到列类型时失败: %s", err)
+		err = fmt.Errorf("InitCache(),Failed to get the column type, err:%s", err)
 		return nil, err
 	}
 	//保存数据库中列的信息
@@ -167,6 +169,9 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	var rowNum int64
 	sortColumn := dbCache.TableConfig.GetSortColumn()
 	sortMode := dbCache.TableConfig.GetSortMode()
+	if sortMode==""{
+		sortMode="desc"
+	}
 	// 按行取数据
 	for rows.Next() {
 		// 从数据中获得行数据,保存在scanArgs的MAP数据中
@@ -258,14 +263,13 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		}
 	}
 
-	//判断用于分页查询的缓存类型.初始化按指定列进行排序.
-	switch dbCache.TableConfig.GetCacheType() {
-	case "slice", "sliceNotDel": //数据保存于切片
-		//判断配置表中,是否指定了排序方式,如果没指定,则按升序排序
-		if dbCache.TableConfig.GetSortMode() == "" {
-			dbCache.SliceDbCache = InsertSortAsc(dbCache.SliceDbCache)
-		}
-	}
+	////判断配置表中,是否指定了排序方式,如果没指定,则按主键降序排序
+	//switch dbCache.TableConfig.GetCacheType() {
+	//case "slice", "sliceNotDel": //数据保存于切片
+	//	if dbCache.TableConfig.GetSortMode() == "" {
+	//		dbCache.SliceDbCache = QuickSortGoDesc(dbCache.SliceDbCache)
+	//	}
+	//}
 
 	return dbCache, nil
 }
@@ -281,7 +285,7 @@ func (d *DBcache) GetRow(Pkey string) (result map[string]string, err error) {
 			return true
 		})
 	} else {
-		err = fmt.Errorf("dbcache.GetRow(),数据未找到")
+		err = fmt.Errorf("GetRow(),数据未找到")
 		return result, err
 	}
 	return result, nil
@@ -309,7 +313,7 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 	//删除数据库对应主键的行
 	n, err = d.DelDbRow(Pkey)
 	if err != nil {
-		err = fmt.Errorf("DelRow(),在数据库中删除主键为(%s)的行失败.err : %s", Pkey, err)
+		err = fmt.Errorf("DelRow(),err : %s", err)
 		return 0, err
 	}
 	//删除缓存
@@ -354,7 +358,20 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 		}
 		return n, err
 	} else {
-		d.dataAsync.sendToAsyncChan(sqlString)
+		//异步更新数据库时,是否需要等待返回执行结果.
+		if d.TableConfig.GetIsWaitResult(){
+			result := make(chan *WaitResult, 1)
+			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			waitResult := &WaitResult{}
+			waitResult = <- result
+			if waitResult.err != nil{
+				err = fmt.Errorf("DelDbRow(),删除行数据失败,行主键(%s),err : %s", key, err)
+				return 0, err
+			}
+			return n, err
+		}else{
+			d.dataAsync.sendToAsyncChan(sqlString)
+		}
 	}
 	return 0, nil
 }
@@ -410,6 +427,8 @@ func (d *DBcache) backCheckDelRowRecord() {
 			if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
 				d.RwMutex.Lock()
 				size := len(d.SliceDbCache)
+				d.SliceDbCache=nil
+				d.DelRowNum=nil
 				d.SliceDbCache = make([]*SliceCache, 0, size)
 				d.DelRowNum = make(map[int]bool, size)
 				pkey := d.TableConfig.GetPkey()
@@ -440,6 +459,8 @@ func (d *DBcache) backCheckDelRowRecord() {
 					return true
 				})
 				d.RwMutex.Unlock()
+				runtime.GC()
+				debug.FreeOSMemory()
 			}
 		}
 	}
@@ -528,7 +549,7 @@ func (d *DBcache) GetWhere(where string) (result []map[string]string, err error)
 
 	where = strings.TrimSpace(where)
 	if len(where) == 0 {
-		return nil, fmt.Errorf("dbcache.GetWhere(),where条件不能为空")
+		return nil, fmt.Errorf("GetWhere(),where条件不能为空")
 	}
 
 	//检查是否包含and 或 or
@@ -540,7 +561,7 @@ func (d *DBcache) GetWhere(where string) (result []map[string]string, err error)
 	if isAnd == true && isOr == false {
 		whereCondition, err = d.GetCondition(where, "and")
 		if err != nil {
-			err = fmt.Errorf("dbcache.GetWhere(),条件错误: %s ,err : %s", where, err)
+			err = fmt.Errorf("GetWhere(),条件错误: %s ,err : %s", where, err)
 			return nil, err
 		}
 	}
@@ -549,7 +570,7 @@ func (d *DBcache) GetWhere(where string) (result []map[string]string, err error)
 	if isAnd == false && isOr == true {
 		whereCondition, err = d.GetCondition(where, "or")
 		if err != nil {
-			err = fmt.Errorf("dbcache.GetWhere(),条件错误: %s ,err : %s", where, err)
+			err = fmt.Errorf("GetWhere(),条件错误: %s ,err : %s", where, err)
 			return nil, err
 		}
 	}
@@ -558,7 +579,7 @@ func (d *DBcache) GetWhere(where string) (result []map[string]string, err error)
 	if isAnd == false && isOr == false {
 		whereCondition, err = d.GetCondition(where, "=")
 		if err != nil {
-			err = fmt.Errorf("dbcache.GetWhere(),条件错误: %s , err : %s", where, err)
+			err = fmt.Errorf("GetWhere(),条件错误: %s , err : %s", where, err)
 			return nil, err
 		}
 	}
@@ -684,7 +705,7 @@ func (d *DBcache) GetCondition(where string, operator string) (whereCondition []
 		if i := strings.Index(condition, "!="); i != -1 {
 			result, err := d.SplitCondition(condition, "!=")
 			if err != nil {
-				err = fmt.Errorf("dbcache.GetCondition(),条件错误: %s ,err: %s", condition, err)
+				err = fmt.Errorf("GetCondition(),条件错误: %s ,err: %s", condition, err)
 				return nil, err
 			}
 			whereCondition = append(whereCondition, result)
@@ -692,7 +713,7 @@ func (d *DBcache) GetCondition(where string, operator string) (whereCondition []
 		} else if i := strings.Index(condition, "="); i != -1 {
 			result, err := d.SplitCondition(condition, "=")
 			if err != nil {
-				err = fmt.Errorf("dbcache.GetCondition(),条件错误: %s ,err: %s", condition, err)
+				err = fmt.Errorf("GetCondition(),条件错误: %s ,err: %s", condition, err)
 				return nil, err
 			}
 			whereCondition = append(whereCondition, result)
@@ -726,7 +747,7 @@ func (d *DBcache) SplitCondition(str string, operator string) (result []string, 
 		result = append(result, "false")
 		return result, nil
 	} else {
-		err = fmt.Errorf("dbcache.SplitCondition(),字符串:%s 按(%s)分割失败.", str, operator)
+		err = fmt.Errorf("SplitCondition(),字符串:%s 按(%s)分割失败.", str, operator)
 		return nil, err
 	}
 }
@@ -751,7 +772,7 @@ func (d *DBcache) UpdateColumn(Pkey string, column string, value string) (n int6
 		//更新数据库
 		i, err := d.UpdateDbcolumn(Pkey, column, value)
 		if err != nil {
-			err = fmt.Errorf("dbcache.UpdateColumn():数据库列更新失败,%s", err)
+			err = fmt.Errorf("UpdateColumn():数据库列更新失败,%s", err)
 			return 0, err
 		}
 		//更新缓存
@@ -792,7 +813,20 @@ func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n in
 		}
 		return n, err
 	} else {
-		d.dataAsync.sendToAsyncChan(sqlString)
+		//异步更新数据库时,是否需要等待返回执行结果.
+		if d.TableConfig.GetIsWaitResult(){
+			result := make(chan *WaitResult, 1)
+			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			waitResult := &WaitResult{}
+			waitResult = <- result
+			if waitResult.err != nil{
+				err = fmt.Errorf("UpdateDbcolumn(),更新行数据失败,主键: %s 列名: %s 列值: %s ", Pkey, column, value)
+				return 0, err
+			}
+			return n, err
+		}else{
+			d.dataAsync.sendToAsyncChan(sqlString)
+		}
 	}
 	return 0, nil
 }
@@ -826,7 +860,7 @@ func (d *DBcache) UpdateColumns(Pkey string, where string) (n int64, err error) 
 		//更新数据库
 		n, err = d.UpdateDbcolumns(Pkey, where)
 		if err != nil {
-			err = fmt.Errorf("UpdateDbColumns() filed, err:%s", err)
+			err = fmt.Errorf("UpdateColumns(), err:%s", err)
 			return 0, err
 		}
 
@@ -861,7 +895,20 @@ func (d *DBcache) UpdateDbcolumns(Pkey string, condition string) (n int64, err e
 		}
 		return n, err
 	} else {
-		d.dataAsync.sendToAsyncChan(sqlString)
+		//异步更新数据库时,是否需要等待返回执行结果.
+		if d.TableConfig.GetIsWaitResult(){
+			result := make(chan *WaitResult, 1)
+			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			waitResult := &WaitResult{}
+			waitResult = <- result
+			if waitResult.err != nil{
+				err = fmt.Errorf("UpdateDbcolumns(),更新行数据失败,行主键: %s, err: %s", Pkey, err)
+				return 0, err
+			}
+			return n, err
+		}else{
+			d.dataAsync.sendToAsyncChan(sqlString)
+		}
 	}
 	return 0, nil
 }
@@ -1054,7 +1101,20 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 		}
 		return n, err
 	} else {
-		d.dataAsync.sendToAsyncChan(sqlString)
+		//异步更新数据库时,是否需要等待返回执行结果.
+		if d.TableConfig.GetIsWaitResult(){
+			result := make(chan *WaitResult, 1)
+			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			waitResult := &WaitResult{}
+			waitResult = <- result
+			if waitResult.err != nil{
+				err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %s", sqlString, err)
+				return 0, err
+			}
+			return n, err
+		}else{
+			d.dataAsync.sendToAsyncChan(sqlString)
+		}
 	}
 	return 0, nil
 }

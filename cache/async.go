@@ -19,9 +19,17 @@ type DataAsync struct {
 
 //异步更新数据库
 type AsyncSql struct {
-	exeSql    string //异步数据更新SQL语句
-	timestamp string //执行语句的时间
-	isFinish  bool   //是否完成.
+	isWaitResult bool            //是否等待返回执行结果
+	result       chan *WaitResult //等待返回执行结果的管道
+	exeSql       string          //异步数据更新SQL语句
+	timestamp    string          //执行语句的时间
+	isFinish     bool            //是否完成.
+}
+
+//等待数据库返回执行结果.
+type WaitResult struct {
+	n   int64 //执行行数
+	err error //执行是否有错误.
 }
 
 func NewDatAsync() *DataAsync {
@@ -61,55 +69,77 @@ func (d *DataAsync) InitAsync(db *sql.DB, tableName string) (err error) {
 
 //后台同步数据库
 func (d *DataAsync) backSyncSql(db *sql.DB) {
+	sqlTmp := &AsyncSql{}
 	for {
-		//检查文件容量大小
-		if d.checkFileSize(d.AsyncFileObj) {
-			newFile, err := d.splitFile(d.AsyncFileObj)
-			if err != nil {
-				logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
-			}
-			d.AsyncFileObj = newFile
-		}
-		//检查文件容量大小
-		if d.checkFileSize(d.AsyncFailedFileObj) {
-			newFile, err := d.splitFile(d.AsyncFailedFileObj)
-			if err != nil {
-				logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
-			}
-			d.AsyncFailedFileObj = newFile
-		}
-
 		//从管道中取出要执行的sql
-		sqlTmp := &AsyncSql{}
 		select {
 		case sqlTmp = <-d.AsyncSqlchan:
 		default:
-			time.Sleep(time.Millisecond * 500)
+			//time.Sleep(time.Millisecond * 500)
 			continue
 		}
 
-		//检查是否完成.
-		if sqlTmp.isFinish == true {
-			continue
-		}
-		//需执行的sql,首先保存于文件
-		sqlMsg := fmt.Sprintf("/* %s */  %s;\n", sqlTmp.timestamp, sqlTmp.exeSql)
-		fmt.Fprintf(d.AsyncFileObj, sqlMsg)
+		//检查是否等待返回执行结果.
+		if sqlTmp.isWaitResult {
+			//等待返回执行结果.
+			//执行SQL语句
+			rs, err := db.Exec(sqlTmp.exeSql)
+			if err != nil {
+				t:=&WaitResult{0, err}
+				sqlTmp.result <- t
+				continue
+			}
+			n, err := rs.RowsAffected()
+			if err != nil {
+				t:=&WaitResult{0, err}
+				sqlTmp.result <- t
+				continue
+			}
+			t:=&WaitResult{n, err}
+			sqlTmp.result <- t
 
-		//执行SQL语句
-		_, err := db.Exec(sqlTmp.exeSql)
-		if err != nil {
-			//执行失败,休眠一会再次执行
-			time.Sleep(time.Millisecond * 500)
+		} else { //不等待返回执行结果.
+			//检查是否完成.
+			if sqlTmp.isFinish == true {
+				continue
+			}
+
+			//检查文件容量大小
+			if d.checkFileSize(d.AsyncFileObj) {
+				newFile, err := d.splitFile(d.AsyncFileObj)
+				if err != nil {
+					logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
+				}
+				d.AsyncFileObj = newFile
+			}
+			//检查文件容量大小
+			if d.checkFileSize(d.AsyncFailedFileObj) {
+				newFile, err := d.splitFile(d.AsyncFailedFileObj)
+				if err != nil {
+					logs.Error("a", "backSyncSql(),splitFile() faild. err: %s", err)
+				}
+				d.AsyncFailedFileObj = newFile
+			}
+
+			//需执行的sql,首先保存于文件
+			sqlMsg := fmt.Sprintf("/* %s */  %s;\n", sqlTmp.timestamp, sqlTmp.exeSql)
+			fmt.Fprintf(d.AsyncFileObj, sqlMsg)
+
+			//执行SQL语句
 			_, err := db.Exec(sqlTmp.exeSql)
 			if err != nil {
-				sqlMsg := fmt.Sprintf("/* [%s][%s] */  %s;\n", sqlTmp.timestamp, err, sqlTmp.exeSql)
-				fmt.Fprintf(d.AsyncFailedFileObj, sqlMsg)
-				logs.Error("a", "backSyncSql(),DbConn.Exec(%s) faild. err: %s", sqlTmp.exeSql, err)
-				sqlTmp.isFinish = false
+				//执行失败,休眠一会再次执行
+				time.Sleep(time.Millisecond * 500)
+				_, err := db.Exec(sqlTmp.exeSql)
+				if err != nil {
+					sqlMsg := fmt.Sprintf("/* [%s][%s] */  %s;\n", sqlTmp.timestamp, err, sqlTmp.exeSql)
+					fmt.Fprintf(d.AsyncFailedFileObj, sqlMsg)
+					logs.Error("a", "backSyncSql(),DbConn.Exec(%s) faild. err: %s", sqlTmp.exeSql, err)
+					sqlTmp.isFinish = false
+				}
 			}
+			sqlTmp.isFinish = true
 		}
-		sqlTmp.isFinish = true
 	}
 }
 
@@ -156,6 +186,20 @@ func (d *DataAsync) sendToAsyncChan(exeSql string) {
 		exeSql:    exeSql,
 		timestamp: time.Now().Format("2006-01-02 15-04-05"),
 		isFinish:  false,
+	}
+	select {
+	case d.AsyncSqlchan <- sqlTmp:
+	default:
+		fmt.Println("Async sql output File,channel blocked")
+	}
+}
+
+//发送要执行的sql语句到管道.等待执行结果.
+func (d *DataAsync) sendToAsyncChanResult(isWaitResult bool, result chan *WaitResult, exeSql string) {
+	sqlTmp := &AsyncSql{
+		isWaitResult: isWaitResult,
+		result:       result,
+		exeSql:       exeSql,
 	}
 	select {
 	case d.AsyncSqlchan <- sqlTmp:
