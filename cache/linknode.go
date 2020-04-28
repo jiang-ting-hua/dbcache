@@ -6,16 +6,18 @@ import "sync"
 type Node struct {
 	rowNum int64
 	pkey   string
+	sortColumn string
 	row    *sync.Map
 	pre    *Node
 	next   *Node
 }
 
 //新建一个节点
-func NewNode(rowNum int64,pkey string, row *sync.Map) *Node {
+func NewNode(rowNum int64,pkey string,sortColumn string, row *sync.Map) *Node {
 	return &Node{
 		rowNum: rowNum,
 		pkey:   pkey,
+		sortColumn:sortColumn,
 		row:    row,
 		pre:    nil,
 		next:   nil,

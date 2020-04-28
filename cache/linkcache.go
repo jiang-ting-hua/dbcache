@@ -15,7 +15,7 @@ type LinkCache struct {
 
 //新建一个双链表头.
 func NewLinkCache() (LinkCache) {
-	head := NewNode(0, "", nil)
+	head := NewNode(0, "", "", nil)
 	return LinkCache{
 		head:   head,
 		tail:   head,
@@ -109,6 +109,86 @@ func (l *LinkCache) InsertTailFromHead(node *Node) {
 
 }
 
+//插入一个节点,根据按sortColumn升序排列的数据.
+func (l *LinkCache) InsertNodeAsc(node *Node) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	t := l.head
+	//循环查找与小于sortColumn的节点,只到下一节点大于则退出查找
+	for t.next != nil && t.next.sortColumn < node.sortColumn {
+		t = t.next
+	}
+	//如果查找到
+	if t.next != nil && t.next.sortColumn > node.sortColumn {
+		if t.next != nil {
+			t.next.pre = node
+		}
+
+		node.next = t.next
+		node.pre = t
+		t.next = node
+
+		l.length++
+		return true
+	} else {
+		if t.next == nil { //当找到最后一个节点时
+			t.next = node
+			node.pre = t
+
+			l.length++
+			return true
+		}else{ //当比所有节点都小的时候,要插在最前面.
+			t.next.pre = node
+			node.next = t.next
+			node.pre = t
+			t.next = node
+
+			l.length++
+			return true
+		}
+	}
+	return false
+}
+//插入一个节点,根据按sortColumn降序排列的数据.
+func (l *LinkCache) InsertNodeDesc(node *Node) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	t := l.head
+	//循环查找与大于sortColumn的节点,只到下一节点小于则退出查找
+	for t.next != nil && t.next.sortColumn > node.sortColumn {
+		t = t.next
+	}
+	//如果查找到
+	if t.next != nil && t.next.sortColumn < node.sortColumn {
+		if t.next != nil {
+			t.next.pre = node
+		}
+
+		node.next = t.next
+		node.pre = t
+		t.next = node
+
+		l.length++
+		return true
+	} else {
+		if t.next == nil {//当找到最后一个节点时
+			t.next = node
+			node.pre = t
+
+			l.length++
+			return true
+		}else{//当比所有节点都大的时候,要插在最前面.
+			t.next.pre = node
+			node.next = t.next
+			node.pre = t
+			t.next = node
+
+			l.length++
+			return true
+		}
+	}
+	return false
+}
 //删除一个节点,根据主键.
 func (l *LinkCache) DeleteNodePkey(Pkey string) bool {
 	l.mutex.Lock()
@@ -121,7 +201,6 @@ func (l *LinkCache) DeleteNodePkey(Pkey string) bool {
 	for t.next != nil && t.next.pkey != Pkey {
 		t = t.next
 	}
-
 	//如果查找到
 	if t.next != nil && t.next.pkey == Pkey {
 		if t.next.next != nil {
@@ -135,6 +214,7 @@ func (l *LinkCache) DeleteNodePkey(Pkey string) bool {
 		return false
 	}
 }
+
 //得到链表中指定开始到结束的节点
 func (l *LinkCache) GetNodeBetween(start int64, end int64) []*Node {
 	l.mutex.RLock()
@@ -142,7 +222,7 @@ func (l *LinkCache) GetNodeBetween(start int64, end int64) []*Node {
 	t := l.head
 	var index int64
 	//移动链表头位置
-	if t.next !=nil{
+	if t.next != nil {
 		t = t.next
 	}
 	//循环从头遍历到开始位置
@@ -156,20 +236,20 @@ func (l *LinkCache) GetNodeBetween(start int64, end int64) []*Node {
 	}
 	//如果不为空,开始获取数据
 	if t.next != nil {
-		node := make([]*Node,0,end - start)
+		node := make([]*Node, 0, end-start)
 		for i := start; i < end; i++ {
-			node=append(node,t)
-			if t.next != nil{
+			node = append(node, t)
+			if t.next != nil {
 				t = t.next
-			}else{
+			} else {
 				break
 			}
 		}
 		return node
-	}else{
+	} else {
 		return nil
 	}
-    return nil
+	return nil
 }
 
 //得到链表中所有节点
@@ -178,13 +258,13 @@ func (l *LinkCache) GetAllNode() []*Node {
 	defer l.mutex.RUnlock()
 	t := l.head
 	//移动链表头位置
-	if t.next !=nil{
+	if t.next != nil {
 		t = t.next
 	}
-	node := make([]*Node,0,l.length)
+	node := make([]*Node, 0, l.length)
 	//循环从头一直到尾部遍历
 	for t.next != nil {
-		node=append(node,t)
+		node = append(node, t)
 		t = t.next
 	}
 	return node
@@ -365,17 +445,16 @@ func (l *LinkCache) DeleteIndexNode(index int64) bool {
 }
 
 //根据输入值,在链表中查找.
-func (l *LinkCache) FindString(Pkey string)(out string) {
+func (l *LinkCache) FindString(Pkey string) (out string) {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	t := l.head.next
 	//循环从头一直到尾部遍历
 	for t.next != nil {
-		if strings.Contains(t.pkey,Pkey){
-			out=out+","
+		if strings.Contains(t.pkey, Pkey) {
+			out = out + ","
 		}
 		t = t.next
 	}
 	return out
 }
-

@@ -169,8 +169,8 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	var rowNum int64
 	sortColumn := dbCache.TableConfig.GetSortColumn()
 	sortMode := dbCache.TableConfig.GetSortMode()
-	if sortMode==""{
-		sortMode="desc"
+	if sortMode == "" {
+		sortMode = "desc"
 	}
 	// 按行取数据
 	for rows.Next() {
@@ -241,6 +241,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 			node := &Node{
 				rowNum: rowNum,
 				pkey:   PkeyValue,
+				sortColumn: sortColumnValue,
 				row:    RowMap,
 				pre:    nil,
 				next:   nil,
@@ -359,17 +360,17 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 		return n, err
 	} else {
 		//异步更新数据库时,是否需要等待返回执行结果.
-		if d.TableConfig.GetIsWaitResult(){
+		if d.TableConfig.GetIsWaitResult() {
 			result := make(chan *WaitResult, 1)
-			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			d.dataAsync.sendToAsyncChanResult(true, result, sqlString)
 			waitResult := &WaitResult{}
-			waitResult = <- result
-			if waitResult.err != nil{
+			waitResult = <-result
+			if waitResult.err != nil {
 				err = fmt.Errorf("DelDbRow(),删除行数据失败,行主键(%s),err : %s", key, err)
 				return 0, err
 			}
 			return n, err
-		}else{
+		} else {
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
 	}
@@ -427,8 +428,8 @@ func (d *DBcache) backCheckDelRowRecord() {
 			if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
 				d.RwMutex.Lock()
 				size := len(d.SliceDbCache)
-				d.SliceDbCache=nil
-				d.DelRowNum=nil
+				d.SliceDbCache = nil
+				d.DelRowNum = nil
 				d.SliceDbCache = make([]*SliceCache, 0, size)
 				d.DelRowNum = make(map[int]bool, size)
 				pkey := d.TableConfig.GetPkey()
@@ -498,7 +499,7 @@ func (d *DBcache) GetRowNumRecord(pkeyValue string) (i int) {
 			i = BinarySearchAsc(d.SliceDbCache, pkeyValue)
 		}
 		//找到,还要在保存删除行号记录中查找
-		if i != -1  {
+		if i != -1 {
 			if d.DelRowNum[i] {
 				return -1
 			} else {
@@ -542,21 +543,8 @@ func (d *DBcache) GetColumnType(column string) (columnType string) {
 	return ""
 }
 
-//根据where条件,获取多行数据.
-func (d *DBcache) GetWhere(where string) (result []map[string]string, err error) {
-	//存储各条件表达式
-	whereCondition := [][]string{}
-
-	where = strings.TrimSpace(where)
-	if len(where) == 0 {
-		return nil, fmt.Errorf("GetWhere(),where条件不能为空")
-	}
-
-	//检查是否包含and 或 or
-	where = strings.ToLower(where)
-	isAnd := strings.Contains(where, " and ")
-	isOr := strings.Contains(where, " or ")
-
+//根据where条件中,and和or获得条件表达式
+func (d *DBcache) GetWhereCondition(where string, isAnd, isOr bool) (whereCondition [][]string, err error) {
 	//如果where是and组合条件
 	if isAnd == true && isOr == false {
 		whereCondition, err = d.GetCondition(where, "and")
@@ -583,97 +571,122 @@ func (d *DBcache) GetWhere(where string) (result []map[string]string, err error)
 			return nil, err
 		}
 	}
+	return
+}
 
-	//从sync.map中取得每行数据,存储于(MAP类型)
-	d.DbCache.Range(func(k, v interface{}) bool {
-		//row := new(map[string]string)
-		//*row = map[string]string{}
-		row := map[string]string{}
-		rowMap := v.(sync.Map)
-		//从条件表达式中,获取各个表达式.并判断各表达式是否成立.
+//根据where条件表达式,检查表达式是否成立,并得到数据.
+func (d *DBcache) GetWhereValue(isAnd, isOr bool, whereCondition [][]string, rowMap *sync.Map, result *[]map[string]string) {
+	row := map[string]string{}
+	//从条件表达式中,获取各个表达式.并判断各表达式是否成立.
+	for i, condition := range whereCondition {
+		//根据条件表式中,column中的值,在该行缓存中查找该值.再做比较(=或!=)判断
+		keyValue, ok := rowMap.Load(condition[0])
+		if ok {
+			//当条件表达式中是=时.
+			if condition[1] == "=" {
+				//判断条件表达中的值与缓存是否相等
+				if condition[2] == keyValue.(string) {
+					//相等,则在条件表达中,设置条件成立
+					whereCondition[i][3] = "true"
+				}
+				//当条件表达式中是!=时.
+			} else if condition[1] == "!=" {
+				//判断条件表达中的值与缓存是否不相等
+				if condition[2] != keyValue.(string) {
+					//不相等,则在条件表达中,设置条件成立
+					whereCondition[i][3] = "true"
+				}
+			}
+		}
+	}
+
+	switch {
+	//当条件表达式是and时.如果有一个条件不成立,则整个表达式不成立.不成立则true
+	case isAnd == true && isOr == false:
+		isMatch := false
 		for i, condition := range whereCondition {
-			//根据条件表式中,column中的值,在该行缓存中查找该值.再做比较(=或!=)判断
-			keyValue, ok := rowMap.Load(condition[0])
-			if ok {
-				//当条件表达式中是=时.
-				if condition[1] == "=" {
-					//判断条件表达中的值与缓存是否相等
-					if condition[2] == keyValue.(string) {
-						//相等,则在条件表达中,设置条件成立
-						whereCondition[i][3] = "true"
-					}
-					//当条件表达式中是!=时.
-				} else if condition[1] == "!=" {
-					//判断条件表达中的值与缓存是否不相等
-					if condition[2] != keyValue.(string) {
-						//不相等,则在条件表达中,设置条件成立
-						whereCondition[i][3] = "true"
-					}
-				}
+			if condition[3] == "false" {
+				isMatch = true
+			} else {
+				whereCondition[i][3] = "false"
 			}
 		}
-		switch {
-		//当条件表达式是and时.如果有一个条件不成立,则整个表达式不成立.不成立则true
-		case isAnd == true && isOr == false:
-			isMatch := false
-			for i, condition := range whereCondition {
-				if condition[3] == "false" {
-					isMatch = true
-				} else {
-					whereCondition[i][3] = "false"
-				}
-			}
-			//条件表达中只要有一个条件(不成立)则执行以下.
-			if isMatch == false {
-				//从该行数据(sny.map),保存在*row(map)中.
-				rowMap.Range(func(k, v interface{}) bool {
-					//(*row)[k.(string)] = v.(string)
-					(row)[k.(string)] = v.(string)
-					return true
-				})
-				//再把该行数据追加到结果切片
-				result = append(result, row)
-			}
-
-		//当条件表达式是or时.只要有一个为真.则条件成立
-		case isAnd == false && isOr == true:
-			isMatch := false
-			for i, condition := range whereCondition {
-				if condition[3] == "true" {
-					isMatch = true
-					whereCondition[i][3] = "false"
-				}
-			}
-			//条件表达中只要有一个条件(成立)则执行以下.
-			if isMatch == true {
-				rowMap.Range(func(k, v interface{}) bool {
-					//(*row)[k.(string)] = v.(string)
-					(row)[k.(string)] = v.(string)
-					return true
-				})
-				result = append(result, row)
-			}
-
-		//当条件是=时.无and或or
-		case isAnd == false && isOr == false:
-			isMatch := false
-			for i, condition := range whereCondition {
-				if condition[3] == "true" {
-					isMatch = true
-					whereCondition[i][3] = "false"
-				}
-			}
-			//判断是否条件成立
-			if isMatch == true {
-				rowMap.Range(func(k, v interface{}) bool {
-					//(*row)[k.(string)] = v.(string)
-					(row)[k.(string)] = v.(string)
-					return true
-				})
-				result = append(result, row)
-			}
+		//条件表达中只要有一个条件(不成立)则执行以下.
+		if isMatch == false {
+			//从该行数据(sny.map),保存在*row(map)中.
+			rowMap.Range(func(k, v interface{}) bool {
+				//(*row)[k.(string)] = v.(string)
+				(row)[k.(string)] = v.(string)
+				return true
+			})
+			//再把该行数据追加到结果切片
+			*result = append(*result, row)
 		}
 
+	//当条件表达式是or时.只要有一个为真.则条件成立
+	case isAnd == false && isOr == true:
+		isMatch := false
+		for i, condition := range whereCondition {
+			if condition[3] == "true" {
+				isMatch = true
+				whereCondition[i][3] = "false"
+			}
+		}
+		//条件表达中只要有一个条件(成立)则执行以下.
+		if isMatch == true {
+			rowMap.Range(func(k, v interface{}) bool {
+				//(*row)[k.(string)] = v.(string)
+				(row)[k.(string)] = v.(string)
+				return true
+			})
+			*result = append(*result, row)
+		}
+
+	//当条件是=时.无and或or
+	case isAnd == false && isOr == false:
+		isMatch := false
+		for i, condition := range whereCondition {
+			if condition[3] == "true" {
+				isMatch = true
+				whereCondition[i][3] = "false"
+			}
+		}
+		//判断是否条件成立
+		if isMatch == true {
+			rowMap.Range(func(k, v interface{}) bool {
+				//(*row)[k.(string)] = v.(string)
+				(row)[k.(string)] = v.(string)
+				return true
+			})
+			*result = append(*result, row)
+		}
+	}
+}
+
+//根据where条件,获取多行数据.
+func (d *DBcache) GetWhere(where string) (result []map[string]string, err error) {
+	//存储各条件表达式
+	whereCondition := [][]string{}
+
+	where = strings.TrimSpace(where)
+	if len(where) == 0 {
+		return nil, fmt.Errorf("GetWhere(),where条件不能为空")
+	}
+
+	//检查是否包含and 或 or
+	where = strings.ToLower(where)
+	isAnd := strings.Contains(where, " and ")
+	isOr := strings.Contains(where, " or ")
+	//根据and 或 or得到表达式
+	whereCondition, err = d.GetWhereCondition(where, isAnd, isOr)
+	if err != nil {
+		return nil, fmt.Errorf("GetWhere(), err: %s", err)
+	}
+
+	//从sync.map中取得每行数据,存储于result(MAP类型)
+	d.DbCache.Range(func(k, v interface{}) bool {
+		rowMap := v.(sync.Map)
+		d.GetWhereValue(isAnd, isOr, whereCondition, &rowMap, &result)
 		return true
 	})
 	return result, err
@@ -814,17 +827,17 @@ func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n in
 		return n, err
 	} else {
 		//异步更新数据库时,是否需要等待返回执行结果.
-		if d.TableConfig.GetIsWaitResult(){
+		if d.TableConfig.GetIsWaitResult() {
 			result := make(chan *WaitResult, 1)
-			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			d.dataAsync.sendToAsyncChanResult(true, result, sqlString)
 			waitResult := &WaitResult{}
-			waitResult = <- result
-			if waitResult.err != nil{
+			waitResult = <-result
+			if waitResult.err != nil {
 				err = fmt.Errorf("UpdateDbcolumn(),更新行数据失败,主键: %s 列名: %s 列值: %s ", Pkey, column, value)
 				return 0, err
 			}
 			return n, err
-		}else{
+		} else {
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
 	}
@@ -896,17 +909,17 @@ func (d *DBcache) UpdateDbcolumns(Pkey string, condition string) (n int64, err e
 		return n, err
 	} else {
 		//异步更新数据库时,是否需要等待返回执行结果.
-		if d.TableConfig.GetIsWaitResult(){
+		if d.TableConfig.GetIsWaitResult() {
 			result := make(chan *WaitResult, 1)
-			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			d.dataAsync.sendToAsyncChanResult(true, result, sqlString)
 			waitResult := &WaitResult{}
-			waitResult = <- result
-			if waitResult.err != nil{
+			waitResult = <-result
+			if waitResult.err != nil {
 				err = fmt.Errorf("UpdateDbcolumns(),更新行数据失败,行主键: %s, err: %s", Pkey, err)
 				return 0, err
 			}
 			return n, err
-		}else{
+		} else {
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
 	}
@@ -1020,42 +1033,31 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		switch d.TableConfig.GetSortMode() {
 		case "asc":
 			index = BinarySearchAsc(d.SliceDbCache, sortColumnValue)
-			if index == -1  {
+			if index == -1 {
 				//当是升序排序时,如果没找到,判断是不是比第1个还小,如果还小,则插入到最前面
-				if sortColumnValue<d.SliceDbCache[0].SortColumn{
-					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData},d.SliceDbCache[0:]...)...)
-				}else{
+				if sortColumnValue < d.SliceDbCache[0].SortColumn {
+					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData}, d.SliceDbCache[0:]...)...)
+				} else {
 					d.SliceDbCache = append(d.SliceDbCache, SliceData)
 				}
-			}else{
-				d.SliceDbCache = append(d.SliceDbCache[:n], append([]*SliceCache{SliceData},d.SliceDbCache[n:]...)...)
+			} else {
+				d.SliceDbCache = append(d.SliceDbCache[:n], append([]*SliceCache{SliceData}, d.SliceDbCache[n:]...)...)
 			}
 		case "desc":
 			index = BinarySearchDesc(d.SliceDbCache, sortColumnValue)
-			if index == -1  {
+			if index == -1 {
 				//当是降序排序时,如果没找到,判断是不是比第1个还大,如果还大,则插入到最前面
-				if sortColumnValue>d.SliceDbCache[0].SortColumn{
-					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData},d.SliceDbCache[0:]...)...)
-				}else{
+				if sortColumnValue > d.SliceDbCache[0].SortColumn {
+					d.SliceDbCache = append(d.SliceDbCache[:0], append([]*SliceCache{SliceData}, d.SliceDbCache[0:]...)...)
+				} else {
 					d.SliceDbCache = append(d.SliceDbCache, SliceData)
 				}
-			}else{
-				d.SliceDbCache = append(d.SliceDbCache[:index], append([]*SliceCache{SliceData},d.SliceDbCache[index:]...)...)
+			} else {
+				d.SliceDbCache = append(d.SliceDbCache[:index], append([]*SliceCache{SliceData}, d.SliceDbCache[index:]...)...)
 			}
 		default:
 			//如果未排序,则追加到最后.
 			d.SliceDbCache = append(d.SliceDbCache, SliceData)
-			//for i,v:=range d.SliceDbCache{
-			//	if v.SortColumn==sortColumnValue{
-			//		index=i
-			//		break
-			//	}
-			//}
-			//if index == -1 {
-			//	d.SliceDbCache = append(d.SliceDbCache, SliceData)
-			//}else{
-			//	d.SliceDbCache = append(d.SliceDbCache[:index], append([]*SliceCache{SliceData},d.SliceDbCache[index:]...)...)
-			//}
 		}
 		d.RwMutex.Unlock()
 	case "sliceNotDel": //数据保存于切片,但不删除
@@ -1074,12 +1076,19 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		node := &Node{
 			rowNum: d.LinkDbCache.length + 1,
 			pkey:   PkeyValue,
+			sortColumn: sortColumnValue,
 			row:    rowMap,
 			pre:    nil,
 			next:   nil,
 		}
-		//插入到最后.
-		d.LinkDbCache.InsertTail(node)
+		switch d.TableConfig.GetSortMode() {
+		case "asc":
+			d.LinkDbCache.InsertNodeAsc(node)
+		case "desc":
+			d.LinkDbCache.InsertNodeDesc(node)
+		default://插入到最后.
+			d.LinkDbCache.InsertTail(node)
+			}
 	}
 	return i, nil
 }
@@ -1102,17 +1111,17 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 		return n, err
 	} else {
 		//异步更新数据库时,是否需要等待返回执行结果.
-		if d.TableConfig.GetIsWaitResult(){
+		if d.TableConfig.GetIsWaitResult() {
 			result := make(chan *WaitResult, 1)
-			d.dataAsync.sendToAsyncChanResult(true,result,sqlString)
+			d.dataAsync.sendToAsyncChanResult(true, result, sqlString)
 			waitResult := &WaitResult{}
-			waitResult = <- result
-			if waitResult.err != nil{
+			waitResult = <-result
+			if waitResult.err != nil {
 				err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %s", sqlString, err)
 				return 0, err
 			}
-			return n, err
-		}else{
+			return waitResult.n, err
+		} else {
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
 	}

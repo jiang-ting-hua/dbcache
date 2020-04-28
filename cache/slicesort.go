@@ -49,7 +49,7 @@ func Swap(data []*SliceCache, i, j int) {
 //快速排序(升序排序)
 func QuickSortAsc(data []*SliceCache) []*SliceCache {
 	rand.Seed(time.Now().UnixNano())
-	if len(data) < 100 {
+	if len(data) < 10 {
 		return BinarySearchSortAsc(data)
 	} else {
 		QuickSortIndexAsc(data, 0, len(data)-1)
@@ -59,7 +59,7 @@ func QuickSortAsc(data []*SliceCache) []*SliceCache {
 
 //快速排序,递归
 func QuickSortIndexAsc(data []*SliceCache, left, right int) {
-	if right-left < 100 {
+	if right-left < 10 {
 		//调用二分插入排序,对指定数据段排序
 		BinarySearchSortIndexAsc(data, left, right)
 	} else {
@@ -96,7 +96,7 @@ func QuickSortIndexAsc(data []*SliceCache, left, right int) {
 //并发快速排序(升序排序)
 func QuickSortGoAsc(data []*SliceCache) []*SliceCache {
 	rand.Seed(time.Now().UnixNano())
-	if len(data) < 100 {
+	if len(data) < 10 {
 		return BinarySearchSortAsc(data)
 	} else {
 		QuickSortIndexGoAsc(data, 0, len(data)-1)
@@ -153,7 +153,7 @@ func QuickSortIndexGoAsc(data []*SliceCache, left, right int) {
 //快速排序(降序排序)
 func QuickSortDesc(data []*SliceCache) []*SliceCache {
 	rand.Seed(time.Now().UnixNano())
-	if len(data) < 100 {
+	if len(data) < 10 {
 		return BinarySearchSortDesc(data)
 	} else {
 		QuickSortIndexDesc(data, 0, len(data)-1)
@@ -163,7 +163,7 @@ func QuickSortDesc(data []*SliceCache) []*SliceCache {
 
 //快速排序(降序排序),递归
 func QuickSortIndexDesc(data []*SliceCache, left, right int) {
-	if right-left < 100 {
+	if right-left < 10 {
 		//调用二分插入排序,对指定数据段排序
 		BinarySearchSortIndexDesc(data, left, right)
 	} else {
@@ -200,7 +200,7 @@ func QuickSortIndexDesc(data []*SliceCache, left, right int) {
 //并发快速排序(降序排序)
 func QuickSortGoDesc(data []*SliceCache) []*SliceCache {
 	rand.Seed(time.Now().UnixNano())
-	if len(data) < 100 {
+	if len(data) < 10 {
 		return BinarySearchSortDesc(data)
 	} else {
 		QuickSortIndexGoDesc(data, 0, len(data)-1)
@@ -210,7 +210,7 @@ func QuickSortGoDesc(data []*SliceCache) []*SliceCache {
 
 //并发快速排序(降序排序),递归
 func QuickSortIndexGoDesc(data []*SliceCache, left, right int) {
-	if right-left < 100 {
+	if right-left < 10 {
 		//调用二分插入排序,对指定数据段排序
 		BinarySearchSortIndexDesc(data, left, right)
 	} else {
