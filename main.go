@@ -4,9 +4,11 @@ import (
 	"dbcache/cache"
 	"dbcache/conf"
 	"dbcache/db"
+	"dbcache/grpcserver"
 	"dbcache/logs" //日志库
+	"dbcache/rpcserver"
+	"encoding/json"
 	"fmt"
-	"time"
 )
 
 func main() {
@@ -73,6 +75,19 @@ func main() {
 	}
 	defer GoodsCache.Close()
 
+	//启动rpc,配置IP地址和端口,在config.conf配置文件中.
+	err = rpcserver.RpcRun()
+	if err!=nil{
+		fmt.Println("RPC service failed",err)
+		return
+	}
+
+	//启动Grpc,配置IP地址和端口,在config.conf配置文件中.
+	err = grpcserver.GrpcRun()
+	if err!=nil{
+		fmt.Println("GRPC service failed",err)
+		return
+	}
 	// 以下为users表增删改查的样例.
 	//----------------------------------------------------------------------
 
@@ -86,6 +101,12 @@ func main() {
 	for k, v := range result {
 		fmt.Printf("%s=%s, ", k, v)
 	}
+	fmt.Println()
+	bytes, err := json.Marshal(result)
+	if err!=nil{
+		fmt.Println(err)
+	}
+	fmt.Println(string(bytes))
 
 	//二. GetColumn:根据主键,取得某列的数据
 	fmt.Println("二. GetColumn().根据主键,取得某列的数据")
@@ -119,6 +140,11 @@ func main() {
 		}
 		fmt.Println()
 	}
+	//bytes, err = json.Marshal(value)
+	//if err!=nil{
+	//	fmt.Println(err)
+	//}
+	//fmt.Println(string(bytes))
 
 	//五. UpdateColumn:根据主键,更新一列
 	fmt.Println("五. UpdateColumn().根据主键,更新一列数据")
@@ -146,9 +172,9 @@ func main() {
 	if err != nil {
 		logs.Error("a", "插入错误, err:%s", err)
 	}
-	fmt.Println("插入一行数据:",n)
+	fmt.Printf("插入%d行数据\n", n)
 
-	//八,GetRowNum():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
+	//八,GetRowBetween():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
 	fmt.Printf("八,GetRowNum():获取缓存中,start行到end行之间的数据.\n")
 	rows := UsersCache.GetRowBetween(0, 15)
 	for i, rowMap := range rows {
@@ -181,7 +207,10 @@ func main() {
 		fmt.Printf("%s=%s, ", k, v)
 	}
 
-	time.Sleep(time.Second * 3)
+
+	//测试启动RPC,防止退出
+	quit:=make(chan struct{})
+	<-quit
 }
 
 func prof() {

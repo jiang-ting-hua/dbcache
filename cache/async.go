@@ -75,7 +75,7 @@ func (d *DataAsync) backSyncSql(db *sql.DB) {
 		select {
 		case sqlTmp = <-d.AsyncSqlchan:
 		default:
-			//time.Sleep(time.Millisecond * 500)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 

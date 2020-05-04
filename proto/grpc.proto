@@ -1,0 +1,100 @@
+syntax = "proto3";
+//在命令行执行:protoc --go_out=plugins=grpc:. grpc.proto
+//gRPC 的流式，分为三种类型：服务器端流式 RPC,客户端流式 RPC,双向流式 RPC
+package pb;
+
+//Grpc服务方法
+service GrpcDBcache {
+    rpc GetRow (GetRowRequest) returns (GetRowResponse);
+    rpc GetColumn (GetColumnRequest) returns (GetColumnResponse);
+    rpc DelRow (DelRowRequest) returns (DelRowResponse);
+    //服务器端流式 RPC,注意关键字 stream，声明其为一个流方法。
+    rpc GetWhere (GetWhereRequest) returns (stream GetWhereResponse);
+    rpc UpdateColumn (UpdateColumnRequest) returns (UpdateColumnResponse);
+    rpc UpdateColumns (UpdateColumnsRequest) returns (UpdateColumnsResponse);
+    rpc InsertRow (InsertRowRequest) returns (InsertRowResponse);
+    //服务器端流式 RPC,注意关键字 stream，声明其为一个流方法。
+    rpc GetRowBetween (GetRowBetweenRequest) returns (stream GetRowBetweenResponse);
+}
+
+//--------------GetRow()---------------------------------
+//GetRow,请求的参数.
+message GetRowRequest {
+    string TableName = 1;
+    string Pkey = 2;
+}
+//GetRow,响应的结果.
+message GetRowResponse {
+    map<string, string> Result = 1;
+}
+//--------------GetColumn()---------------------------------
+message GetColumnRequest {
+    string TableName = 1;
+    string Pkey = 2;
+    string Column = 3;
+}
+message GetColumnResponse {
+    string Result = 1;
+}
+//--------------DelRow()---------------------------------
+message DelRowRequest {
+    string TableName = 1;
+    string Pkey = 2;
+}
+message DelRowResponse {
+    int64 Result = 1;
+}
+//--------------GetWhere()---------------------------------
+message GetWhereRequest {
+    string TableName = 1;
+    string Where = 2;
+}
+//服务器端流式 RPC
+message GetWhereResponse {
+    GetWhereStream Result = 1;
+}
+message GetWhereStream {
+    map<string, string> Result = 1;
+}
+//--------------UpdateColumn()---------------------------------
+message UpdateColumnRequest {
+    string TableName = 1;
+    string Pkey = 2;
+    string Column = 3;
+    string ColumnValue = 4;
+}
+message UpdateColumnResponse {
+    int64 Result = 1;
+}
+//--------------UpdateColumns()---------------------------------
+message UpdateColumnsRequest {
+    string TableName = 1;
+    string Pkey = 2;
+    string Where = 3;
+}
+message UpdateColumnsResponse {
+    int64 Result = 1;
+}
+//--------------InsertRow()---------------------------------
+message InsertRowRequest {
+    string TableName = 1;
+    string Condition = 2;
+}
+message InsertRowResponse {
+    int64 Result = 1;
+}
+//--------------GetRowBetween()---------------------------------
+message GetRowBetweenRequest {
+    string TableName = 1;
+int64 Start = 2;
+    int64 End = 3;
+}
+//服务器端流式 RPC
+message GetRowBetweenResponse {
+    GetRowBetweentream Result = 1;
+}
+message GetRowBetweentream {
+    map<string, string> Result = 1;
+}
+
+

@@ -14,7 +14,9 @@ import (
 	"sync/atomic"
 	"time"
 )
-
+var(
+	CacheObj=map[string]*DBcache{}  //缓存表对象,用于rpc,grpc
+)
 //数据库缓存表中列的信息
 type columnInfo struct {
 	columnName       string       //列名
@@ -40,10 +42,10 @@ type DBcache struct {
 	//map数据缓存对象[主缓存对象]
 	DbCache sync.Map //用来缓存的表数据
 	//链表缓存对象
-	LinkDbCache LinkCache //链表保存缓存数据[用于页面分页显示]
-	//切片缓存对象
+	LinkDbCache LinkCache //链表保存缓存数据[用于页面分页显示](链表,插入和删除快,但查找,修改没切片数据快.适用于插入删除多.数据量大)
+	//切片缓存对象(切片数组优点,因为内存是连续的,查找,修改快,但是插入和删除慢.适用于查询多.数据量少)
 	SliceDbCache []*SliceCache //用来根据行号查询缓存,[用于页面分页显示]
-	DelRowNum    map[int]bool  //(缓存类型:SliceDbCache)保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.
+	DelRowNum    map[int]bool  //(缓存是切片SliceDbCache,并且缓存类型是[sliceNotDel])保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.但是这样的缺点是未排序.
 	RowCount     int64         //总行数
 	RwMutex      sync.RWMutex  //读写锁
 }
@@ -170,7 +172,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	sortColumn := dbCache.TableConfig.GetSortColumn()
 	sortMode := dbCache.TableConfig.GetSortMode()
 	if sortMode == "" {
-		sortMode = "desc"
+		sortMode = "asc"
 	}
 	// 按行取数据
 	for rows.Next() {
@@ -264,14 +266,15 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		}
 	}
 
-	////判断配置表中,是否指定了排序方式,如果没指定,则按主键降序排序
-	//switch dbCache.TableConfig.GetCacheType() {
-	//case "slice", "sliceNotDel": //数据保存于切片
-	//	if dbCache.TableConfig.GetSortMode() == "" {
-	//		dbCache.SliceDbCache = QuickSortGoDesc(dbCache.SliceDbCache)
-	//	}
-	//}
+	//判断配置表中,是否指定了排序方式,如果没指定,则按主键升序排序
+	switch dbCache.TableConfig.GetCacheType() {
+	case "slice", "sliceNotDel": //数据保存于切片
+		if sortMode == "" {
+			dbCache.SliceDbCache = QuickSortGoAsc(dbCache.SliceDbCache)
+		}
+	}
 
+	CacheObj[dbCache.TableConfig.GetTableName()]=dbCache
 	return dbCache, nil
 }
 
@@ -836,7 +839,7 @@ func (d *DBcache) UpdateDbcolumn(Pkey string, column string, value string) (n in
 				err = fmt.Errorf("UpdateDbcolumn(),更新行数据失败,主键: %s 列名: %s 列值: %s ", Pkey, column, value)
 				return 0, err
 			}
-			return n, err
+			return waitResult.n, err
 		} else {
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
