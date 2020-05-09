@@ -31,12 +31,12 @@ type Users struct { //Users表
 	TableName         string `conf:"table_name"`          //缓存的表名
 	Columns           string `conf:"columns"`             //缓存的多列,以分号隔开
 	Pkey              string `conf:"pkey"`                //缓存表的主键
-	Where             string `conf:"where"`               //缓存表,取数据时,加的where条件.
-	Orther            string `conf:"orther"`              //缓存表,取数据时,按排序条件.在运行中,插入数据也是按此排序.
-	PkeyAutoIncrement bool   `conf:"pkey_auto_increment"` //缓存表,主键是否为自增列
-	CacheType         string `conf:"cache_type"`          //缓存表,主键是否为自增列
-	IsRealtime        bool   `conf:"is_realtime"`         //是否实时同步更新,true:实时更新,false:异步更新.
-	IsWaitResult      bool   `conf:"is_wait_result"`      //异步更新,是否等待返回结果(上面条件是is_realtime = false时)
+	Where             string `conf:"where"`               //缓存表取数据时,加的where条件.
+	Orther            string `conf:"orther"`              //缓存表取数据时,按排序条件.在运行中,插入数据也是按此排序.
+	PkeyAutoIncrement bool   `conf:"pkey_auto_increment"` //缓存表主键是否为自增列
+	CacheType         string `conf:"cache_type"`          //用于分页查询,缓存类型:一.slice切片(按orther里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按orther里排序)
+	IsRealtime        bool   `conf:"is_realtime"`         //缓存表是否实时同步更新,true:实时更新,false:异步更新.
+	IsWaitResult      bool   `conf:"is_wait_result"`      //缓存表在异步更新时,是否等待返回结果(上面条件是is_realtime = false时)
 }
 
 func (u *Users) GetPkey() string                      { return u.Pkey }
@@ -57,12 +57,12 @@ type Goods struct { //Goods表
 	TableName         string `conf:"table_name"`          //缓存的表名
 	Columns           string `conf:"columns"`             //缓存的多列,以分号隔开
 	Pkey              string `conf:"pkey"`                //缓存表的主键
-	Where             string `conf:"where"`               //缓存表,取数据时,加的where条件.
-	Orther            string `conf:"orther"`              //缓存表,取数据时,按排序条件.在运行中,插入数据也是按此排序.
-	PkeyAutoIncrement bool   `conf:"pkey_auto_increment"` //缓存表,主键是否为自增列
-	CacheType         string `conf:"cache_type"`          //缓存表,主键是否为自增列
+	Where             string `conf:"where"`               //缓存表取数据时,加的where条件.
+	Orther            string `conf:"orther"`              //缓存表取数据时,按排序条件.在运行中,插入数据也是按此排序.
+	PkeyAutoIncrement bool   `conf:"pkey_auto_increment"` //缓存表主键是否为自增列
+	CacheType         string `conf:"cache_type"`          //用于分页查询,缓存类型:一.slice切片(按orther里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按orther里排序)
 	IsRealtime        bool   `conf:"is_realtime"`         //是否实时同步更新,true:实时更新,false:异步更新.
-	IsWaitResult      bool   `conf:"is_wait_result"`      //异步更新,是否等待返回结果(上面条件是is_realtime = false时)
+	IsWaitResult      bool   `conf:"is_wait_result"`      //缓存表在异步更新时,是否等待返回结果(上面条件是is_realtime = false时)
 }
 
 func (u *Goods) GetPkey() string                      { return u.Pkey }

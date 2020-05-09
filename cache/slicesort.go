@@ -1,9 +1,7 @@
 package cache
 
 import (
-	"math/rand"
 	"sync"
-	"time"
 )
 //---------------------数据查找----------------------------------------------------
 //二分查找.(数据原已排序,数据是升序)
@@ -48,7 +46,7 @@ func Swap(data []*SliceCache, i, j int) {
 //---------------------快速排序(升序排序)----------------------------------------------------
 //快速排序(升序排序)
 func QuickSortAsc(data []*SliceCache) []*SliceCache {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	if len(data) < 10 {
 		return BinarySearchSortAsc(data)
 	} else {
@@ -66,8 +64,8 @@ func QuickSortIndexAsc(data []*SliceCache, left, right int) {
 		//快速排序
 		//以第一个为标准,比第一个小的往左交换,比第一个大的往右交换
 		//一,随机取一个数,交换到第一个位置.以第一个为标准.
-		randNum := rand.Int()%(right-left) + left
-		Swap(data, left, randNum)
+		//randNum := rand.Int()%(right-left) + left
+		//Swap(data, left, randNum)
 		t := data[left].SortColumn //备份以此为标准的中间值
 
 		lt := left      //保证left到lt之间的数据小于标准值t.(lt++)
@@ -95,7 +93,7 @@ func QuickSortIndexAsc(data []*SliceCache, left, right int) {
 //---------------------并发快速排序(升序排序)----------------------------------------------------
 //并发快速排序(升序排序)
 func QuickSortGoAsc(data []*SliceCache) []*SliceCache {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	if len(data) < 10 {
 		return BinarySearchSortAsc(data)
 	} else {
@@ -113,8 +111,8 @@ func QuickSortIndexGoAsc(data []*SliceCache, left, right int) {
 		//快速排序
 		//以第一个为标准,比第一个小的往左交换,比第一个大的往右交换
 		//一,随机取一个数,交换到第一个位置.以第一个为标准.
-		randNum := rand.Int()%(right-left) + left
-		Swap(data, left, randNum)
+		//randNum := rand.Int()%(right-left) + left
+		//Swap(data, left, randNum)
 		t := data[left].SortColumn //备份以此为标准的中间值
 
 		lt := left      //保证left到lt之间的数据小于标准值t.(lt++)
@@ -152,7 +150,7 @@ func QuickSortIndexGoAsc(data []*SliceCache, left, right int) {
 //---------------------快速排序(降序排序)----------------------------------------------------
 //快速排序(降序排序)
 func QuickSortDesc(data []*SliceCache) []*SliceCache {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	if len(data) < 10 {
 		return BinarySearchSortDesc(data)
 	} else {
@@ -170,8 +168,8 @@ func QuickSortIndexDesc(data []*SliceCache, left, right int) {
 		//快速排序
 		//以第一个为标准,比第一个小的往左交换,比第一个大的往右交换
 		//一,随机取一个数,交换到第一个位置.以第一个为标准.
-		randNum := rand.Int()%(right-left) + left
-		Swap(data, left, randNum)
+		//randNum := rand.Int()%(right-left) + left
+		//Swap(data, left, randNum)
 		t := data[left].SortColumn //备份以此为标准的中间值
 
 		lt := left      //保证left到lt之间的数据小于标准值t.(lt++)
@@ -199,7 +197,7 @@ func QuickSortIndexDesc(data []*SliceCache, left, right int) {
 //---------------------并发快速排序(降序排序)----------------------------------------------------
 //并发快速排序(降序排序)
 func QuickSortGoDesc(data []*SliceCache) []*SliceCache {
-	rand.Seed(time.Now().UnixNano())
+	//rand.Seed(time.Now().UnixNano())
 	if len(data) < 10 {
 		return BinarySearchSortDesc(data)
 	} else {
@@ -217,8 +215,8 @@ func QuickSortIndexGoDesc(data []*SliceCache, left, right int) {
 		//快速排序
 		//以第一个为标准,比第一个小的往左交换,比第一个大的往右交换
 		//一,随机取一个数,交换到第一个位置.以第一个为标准.
-		randNum := rand.Int()%(right-left) + left
-		Swap(data, left, randNum)
+		//randNum := rand.Int()%(right-left) + left
+		//Swap(data, left, randNum)
 		t := data[left].SortColumn //备份以此为标准的中间值
 
 		lt := left      //保证left到lt之间的数据小于标准值t.(lt++)

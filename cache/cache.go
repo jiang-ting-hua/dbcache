@@ -14,9 +14,11 @@ import (
 	"sync/atomic"
 	"time"
 )
-var(
-	CacheObj=map[string]*DBcache{}  //缓存表对象,用于rpc,grpc
+
+var (
+	CacheObj = map[string]*DBcache{} //缓存表对象,用于rpc,grpc
 )
+
 //数据库缓存表中列的信息
 type columnInfo struct {
 	columnName       string       //列名
@@ -241,12 +243,12 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 			go dbCache.backCheckDelRowRecord() //后台检查删除记录是否达到需要重新初始化
 		case "link": //数据保存于链表
 			node := &Node{
-				rowNum: rowNum,
-				pkey:   PkeyValue,
+				rowNum:     rowNum,
+				pkey:       PkeyValue,
 				sortColumn: sortColumnValue,
-				row:    RowMap,
-				pre:    nil,
-				next:   nil,
+				row:        RowMap,
+				pre:        nil,
+				next:       nil,
 			}
 			dbCache.LinkDbCache.InsertTail(node)
 		}
@@ -269,12 +271,12 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	//判断配置表中,是否指定了排序方式,如果没指定,则按主键升序排序
 	switch dbCache.TableConfig.GetCacheType() {
 	case "slice", "sliceNotDel": //数据保存于切片
-		if sortMode == "" {
+		if dbCache.TableConfig.GetSortMode() == "" { //如果未排序,按升序排序
 			dbCache.SliceDbCache = QuickSortGoAsc(dbCache.SliceDbCache)
 		}
 	}
-
-	CacheObj[dbCache.TableConfig.GetTableName()]=dbCache
+	//用于rpc和grpc,保存缓存表对象.
+	CacheObj[dbCache.TableConfig.GetTableName()] = dbCache
 	return dbCache, nil
 }
 
@@ -340,7 +342,7 @@ func (d *DBcache) DelRow(Pkey string) (n int64, err error) {
 
 //根据主键值,删除数据库中该行数据.
 func (d *DBcache) DelDbRow(key string) (n int64, err error) {
-	//删除缓存中后,再删除数据库中对应的行.通过主键查找.
+	//删除数据库中对应的行.通过主键查找.
 	columnType := d.GetColumnType(key)
 	var sqlString string
 	if strings.Contains(columnType, "INT") || columnType == "FLOAT" || columnType == "DOUBLE" || columnType == "DECIMAL" {
@@ -374,6 +376,7 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 			}
 			return n, err
 		} else {
+			//不返回结果.
 			d.dataAsync.sendToAsyncChan(sqlString)
 		}
 	}
@@ -387,7 +390,7 @@ func (d *DBcache) DelSliceDbCache(pkeyValue string) {
 	if len(d.SliceDbCache) == 0 {
 		return
 	}
-
+	//根据主键,取出行号.再进行删除.
 	n := d.GetRowNum(pkeyValue)
 	if n != -1 {
 		d.RwMutex.Lock()
@@ -426,9 +429,9 @@ func (d *DBcache) backCheckDelRowRecord() {
 	for {
 		time.Sleep(time.Second * 3600) //一小时检查一次.
 		hour := time.Now().Hour()
-		//晚上1点到5点之间检查和初始化
+		//晚上1点到5点之间检查和重新初始化
 		if hour >= 1 && hour <= 5 {
-			if len(d.DelRowNum) > len(d.SliceDbCache)/2 {
+			if len(d.DelRowNum) > 10000 || len(d.DelRowNum) > len(d.SliceDbCache)/3 {
 				d.RwMutex.Lock()
 				size := len(d.SliceDbCache)
 				d.SliceDbCache = nil
@@ -462,6 +465,15 @@ func (d *DBcache) backCheckDelRowRecord() {
 					d.SliceDbCache = append(d.SliceDbCache, SliceData)
 					return true
 				})
+				//排序.
+				switch sortMode{
+				case "asc":
+					d.SliceDbCache = QuickSortGoAsc(d.SliceDbCache)
+				case "desc":
+					d.SliceDbCache = QuickSortGoDesc(d.SliceDbCache)
+				default:
+					d.SliceDbCache = QuickSortGoAsc(d.SliceDbCache)
+				}
 				d.RwMutex.Unlock()
 				runtime.GC()
 				debug.FreeOSMemory()
@@ -975,7 +987,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	sortMode := d.TableConfig.GetSortMode()
 	whereCondition, err := d.GetCondition(condition, ",")
 	if err != nil {
-		err = fmt.Errorf("InsertRow(),获取条件错误. err: %s", err)
+		err = fmt.Errorf("InsertRow(),获取条件错误. err: %v", err)
 		return 0, err
 	}
 	//判断插入一行数据中，有没有主键．这只是需要主键．
@@ -985,8 +997,17 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 	var sortColumnValue string
 	isPkey := false
 	for _, condition := range whereCondition {
-		//将插入的行数据保存于缓存中
-		rowMap.Store(condition[0], condition[2])
+		//判断该列在数据库中是否可为空
+		colInfo, ok := d.ColumnInfo[condition[0]]
+		if ok {
+			if colInfo.isNullable == true && colInfo.nullable == false {
+				if strings.TrimSpace(condition[2]) == "" {
+					err = fmt.Errorf("InsertRow(),该列%s不能为空. err: %v", condition[0], err)
+					return 0, err
+				}
+			}
+		}
+
 		//判断是否有主键
 		if condition[0] == Pkey {
 			PkeyValue = condition[2]
@@ -997,20 +1018,12 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 			sortColumnValue = condition[2]
 		}
 
-		//判断是否为空
-		colInfo, ok := d.ColumnInfo[condition[0]]
-		if ok {
-			if colInfo.isNullable == true && colInfo.nullable == false {
-				if strings.TrimSpace(condition[2]) == "" {
-					err = fmt.Errorf("InsertRow(),该列%s不能为空. err: %s", condition[0], err)
-					return 0, err
-				}
-			}
-		}
+		//将插入的行数据保存于map中
+		rowMap.Store(condition[0], condition[2])
 	}
 	//不是自增列,必须要有主键.自增列可以不要
 	if d.TableConfig.PkeyIsIncrement() == false && isPkey != true {
-		err = fmt.Errorf("InsertRow(),插入行中,没有主键.条件: %s, 主键: %s, err: %s", condition, Pkey, err)
+		err = fmt.Errorf("InsertRow(),插入行中,没有主键.条件: %s, 主键: %s, err: %v", condition, Pkey, err)
 		return 0, err
 	}
 	//插入数据库
@@ -1077,21 +1090,21 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		d.RwMutex.Unlock()
 	case "link": //数据保存于链表
 		node := &Node{
-			rowNum: d.LinkDbCache.length + 1,
-			pkey:   PkeyValue,
+			rowNum:     d.LinkDbCache.length + 1,
+			pkey:       PkeyValue,
 			sortColumn: sortColumnValue,
-			row:    rowMap,
-			pre:    nil,
-			next:   nil,
+			row:        rowMap,
+			pre:        nil,
+			next:       nil,
 		}
 		switch d.TableConfig.GetSortMode() {
 		case "asc":
 			d.LinkDbCache.InsertNodeAsc(node)
 		case "desc":
 			d.LinkDbCache.InsertNodeDesc(node)
-		default://插入到最后.
+		default: //插入到最后.
 			d.LinkDbCache.InsertTail(node)
-			}
+		}
 	}
 	return i, nil
 }
@@ -1103,12 +1116,12 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {
-			err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %s", sqlString, err)
+			err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %v", sqlString, err)
 			return 0, err
 		}
 		n, err = rs.RowsAffected()
 		if err != nil {
-			err = fmt.Errorf("InsertDbRow(),获取受影响的行失败. err: %s", err)
+			err = fmt.Errorf("InsertDbRow(),获取受影响的行失败. err: %v", err)
 			return 0, err
 		}
 		return n, err
@@ -1120,7 +1133,7 @@ func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 			waitResult := &WaitResult{}
 			waitResult = <-result
 			if waitResult.err != nil {
-				err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %s", sqlString, err)
+				err = fmt.Errorf("InsertDbRow(),插入行到数据库失败.语句:%s, err: %v", sqlString, waitResult.err)
 				return 0, err
 			}
 			return waitResult.n, err
