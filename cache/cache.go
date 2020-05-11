@@ -6,6 +6,7 @@ import (
 	"dbcache/logs"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	"math"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -1076,6 +1077,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 			d.SliceDbCache = append(d.SliceDbCache, SliceData)
 		}
 		d.RwMutex.Unlock()
+		atomic.AddInt64(&d.RowCount, 1)
 	case "sliceNotDel": //数据保存于切片,但不删除
 		//插入用于分页查询缓存
 		d.RwMutex.Lock()
@@ -1088,6 +1090,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		//只是追加,保证切片的行号不变.
 		d.SliceDbCache = append(d.SliceDbCache, SliceData)
 		d.RwMutex.Unlock()
+		atomic.AddInt64(&d.RowCount, 1)
 	case "link": //数据保存于链表
 		node := &Node{
 			rowNum:     d.LinkDbCache.length + 1,
@@ -1105,6 +1108,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 		default: //插入到最后.
 			d.LinkDbCache.InsertTail(node)
 		}
+		atomic.AddInt64(&d.RowCount, 1)
 	}
 	return i, nil
 }
@@ -1216,6 +1220,11 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 	}
 
 	return result
+}
+//用于分页,获取总页数.pageRows参数是每页多少行
+func (d *DBcache) GetPageCount(pageRows int) (pageCount int) {
+	pageCount = int(math.Ceil(float64(d.RowCount) / float64(pageRows)))
+	return
 }
 
 //关闭打开的对象
