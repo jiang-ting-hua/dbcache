@@ -7,9 +7,11 @@ import (
 	"google.golang.org/grpc"
 	"net"
 )
+
 var (
 	GrpcConf=conf.GrpcServer{}
 )
+
 func GrpcRun()(err error){
 	//读取配置文件,初始化配置信息
 	err = conf.ParseConf(conf.CONFIG_FILE, &GrpcConf)

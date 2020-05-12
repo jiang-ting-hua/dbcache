@@ -188,3 +188,66 @@ func (g *DBcache)GetRowBetween(req GetRowBetweenRequest,resp *GetRowBetweenRespo
 	resp.Result=result
 	return nil
 }
+
+//--------------GetPageCount()---------------------------------
+type GetPageCountRequest struct{
+	TableName string
+	PageSize int
+}
+type GetPageCountResponse struct{
+	Result int
+}
+func (g *DBcache)GetPageCount(req GetPageCountRequest,resp *GetPageCountResponse)(err error){
+	cacheObj,ok := cache.CacheObj[req.TableName]
+	if !ok{
+		err = fmt.Errorf("%s,The Table is not cache.",req.TableName)
+		return err
+	}
+	result := cacheObj.GetPageCount(req.PageSize)
+
+	resp.Result=result
+	return nil
+}
+
+//--------------GetMultipageRows()---------------------------------
+type GetMultipageRowsRequest struct{
+	TableName string
+	StartPage int
+	PageNum int
+	PageSize int
+}
+type GetMultipageRowsResponse struct{
+	Result []map[string]string
+}
+func (g *DBcache)GetMultipageRows(req GetMultipageRowsRequest,resp *GetMultipageRowsResponse)(err error){
+	cacheObj,ok := cache.CacheObj[req.TableName]
+	if !ok{
+		err = fmt.Errorf("%s,The Table is not cache.",req.TableName)
+		return err
+	}
+	result := cacheObj.GetMultipageRows(req.StartPage,req.PageNum,req.PageSize)
+
+	resp.Result=result
+	return nil
+}
+
+//--------------GetOnePageRows()---------------------------------
+type GetOnePageRowsRequest struct{
+	TableName string
+	Page int
+	PageSize int
+}
+type GetOnePageRowsResponse struct{
+	Result []map[string]string
+}
+func (g *DBcache)GetOnePageRows(req GetOnePageRowsRequest,resp *GetOnePageRowsResponse)(err error){
+	cacheObj,ok := cache.CacheObj[req.TableName]
+	if !ok{
+		err = fmt.Errorf("%s,The Table is not cache.",req.TableName)
+		return err
+	}
+	result := cacheObj.GetOnePageRows(req.Page,req.PageSize)
+
+	resp.Result=result
+	return nil
+}

@@ -15,6 +15,9 @@ service GrpcDBcache {
     rpc InsertRow (InsertRowRequest) returns (InsertRowResponse);
     //服务器端流式 RPC,注意关键字 stream，声明其为一个流方法。
     rpc GetRowBetween (GetRowBetweenRequest) returns (stream GetRowBetweenResponse);
+    rpc GetPageCount (GetPageCountRequest) returns (GetPageCountResponse);
+    rpc GetMultipageRows (GetMultipageRowsRequest) returns (stream GetMultipageRowsResponse);
+    rpc GetOnePageRows (GetOnePageRowsRequest) returns (stream GetOnePageRowsResponse);
 }
 
 //--------------GetRow()---------------------------------
@@ -86,7 +89,7 @@ message InsertRowResponse {
 //--------------GetRowBetween()---------------------------------
 message GetRowBetweenRequest {
     string TableName = 1;
-int64 Start = 2;
+    int64 Start = 2;
     int64 End = 3;
 }
 //服务器端流式 RPC
@@ -97,4 +100,40 @@ message GetRowBetweentream {
     map<string, string> Result = 1;
 }
 
+//--------------GetPageCount()---------------------------------
+message GetPageCountRequest {
+    string TableName = 1;
+    int64 PageSize = 2;
+}
+message GetPageCountResponse {
+    int64 Result = 1;
+}
 
+//--------------GetMultipageRows()---------------------------------
+message GetMultipageRowsRequest {
+    string TableName = 1;
+    int64 StartPage = 2;
+    int64 PageNum = 3;
+    int64 pageSize = 4;
+}
+//服务器端流式 RPC
+message GetMultipageRowsResponse {
+    GetMultipageRowstream Result = 1;
+}
+message GetMultipageRowstream {
+    map<string, string> Result = 1;
+}
+
+//--------------GetOnePageRows()---------------------------------
+message GetOnePageRowsRequest {
+    string TableName = 1;
+    int64 page = 2;
+    int64 pageSize = 3;
+}
+//服务器端流式 RPC
+message GetOnePageRowsResponse {
+    GetOnePageRowstream Result = 1;
+}
+message GetOnePageRowstream {
+    map<string, string> Result = 1;
+}

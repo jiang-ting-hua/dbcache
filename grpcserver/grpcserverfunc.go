@@ -153,3 +153,60 @@ func (d *DBcacheGrpc) GetRowBetween(req *pb.GetRowBetweenRequest, stream pb.Grpc
 	}
 	return nil
 }
+//GetPageCount方法
+func (d *DBcacheGrpc) GetPageCount(ctx context.Context,req *pb.GetPageCountRequest) (resp *pb.GetPageCountResponse,err error) {
+	cacheObj, ok := cache.CacheObj[req.TableName]
+	if !ok {
+		err = fmt.Errorf("%s,The Table is not cache.", req.TableName)
+		return nil,err
+	}
+	result := cacheObj.GetPageCount(int(req.PageSize))
+	resp = &pb.GetPageCountResponse{
+		Result: int64(result),
+	}
+	return resp, nil
+}
+
+//GetMultipageRows方法
+func (d *DBcacheGrpc) GetMultipageRows(req *pb.GetMultipageRowsRequest, stream pb.GrpcDBcache_GetMultipageRowsServer) (err error) {
+	cacheObj, ok := cache.CacheObj[req.TableName]
+	if !ok {
+		err = fmt.Errorf("%s,The Table is not cache.", req.TableName)
+		return err
+	}
+	result := cacheObj.GetMultipageRows(int(req.StartPage), int(req.PageNum),int(req.PageSize))
+	if len(result) == 0 {
+		return nil
+	}
+	for _, v := range result {
+		err := stream.Send(&pb.GetMultipageRowsResponse{
+			Result: &pb.GetMultipageRowstream{Result: v,},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//GetOnePageRows方法
+func (d *DBcacheGrpc) GetOnePageRows(req *pb.GetOnePageRowsRequest, stream pb.GrpcDBcache_GetOnePageRowsServer) (err error) {
+	cacheObj, ok := cache.CacheObj[req.TableName]
+	if !ok {
+		err = fmt.Errorf("%s,The Table is not cache.", req.TableName)
+		return err
+	}
+	result := cacheObj.GetOnePageRows(int(req.Page), int(req.PageSize))
+	if len(result) == 0 {
+		return nil
+	}
+	for _, v := range result {
+		err := stream.Send(&pb.GetOnePageRowsResponse{
+			Result: &pb.GetOnePageRowstream{Result: v,},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -50,7 +50,7 @@ func (d *DBcacheRpcClient)GetRow(tableName string,pkey string)(result map[string
 	resp:= GetRowResponse{make(map[string]string)}
 	err = d.Conn.Call(RpcServiceName+".GetRow", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("GetRow() error: %s", err)
+		err=fmt.Errorf("GetRow() rpc error: %s", err)
 		return nil,err
 	}
 	return resp.Result,nil
@@ -70,7 +70,7 @@ func (d *DBcacheRpcClient)GetColumn(tableName string,pkey string, column string)
 	resp:= GetColumnResponse{}
 	err = d.Conn.Call(RpcServiceName+".GetColumn", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("GetColumn() error: %s", err)
+		err=fmt.Errorf("GetColumn() rpc error: %s", err)
 		return "",err
 	}
 	return resp.Result,nil
@@ -89,7 +89,7 @@ func (d *DBcacheRpcClient)DelRow(tableName string,pkey string) (n int64, err err
 	resp:= DelRowResponse{}
 	err = d.Conn.Call(RpcServiceName+".DelRow", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("DelRow() error: %s", err)
+		err=fmt.Errorf("DelRow() rpc error: %s", err)
 		return 0,err
 	}
 	return resp.Result,nil
@@ -108,7 +108,7 @@ func (d *DBcacheRpcClient)GetWhere(tableName string,where string) (result []map[
 	resp:= GetWhereResponse{make([]map[string]string,0)}
 	err = d.Conn.Call(RpcServiceName+".GetWhere", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("GetWhere() error: %s", err)
+		err=fmt.Errorf("GetWhere() rpc error: %s", err)
 		return nil,err
 	}
 	return resp.Result,nil
@@ -128,7 +128,7 @@ func (d *DBcacheRpcClient)UpdateColumn(tableName string,Pkey string, column stri
 	resp:= UpdateColumnResponse{}
 	err = d.Conn.Call(RpcServiceName+".UpdateColumn", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("UpdateColumn() error: %s", err)
+		err=fmt.Errorf("UpdateColumn() rpc error: %s", err)
 		return 0,err
 	}
 	return resp.Result,nil
@@ -148,7 +148,7 @@ func (d *DBcacheRpcClient)UpdateColumns(tableName string,Pkey string, where stri
 	resp:= UpdateColumnsResponse{}
 	err = d.Conn.Call(RpcServiceName+".UpdateColumns", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("UpdateColumns() error: %s", err)
+		err=fmt.Errorf("UpdateColumns() rpc error: %s", err)
 		return 0,err
 	}
 	return resp.Result,nil
@@ -167,7 +167,7 @@ func (d *DBcacheRpcClient)InsertRow(tableName string,condition string) (n int64,
 	resp:= InsertRowResponse{}
 	err = d.Conn.Call(RpcServiceName+".InsertRow", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("InsertRow() error: %s", err)
+		err=fmt.Errorf("InsertRow() rpc error: %s", err)
 		return 0,err
 	}
 	return resp.Result,nil
@@ -187,7 +187,67 @@ func (d *DBcacheRpcClient)GetRowBetween(tableName string,start int,end int) (res
 	resp:= GetRowBetweenResponse{make([]map[string]string,0)}
 	err = d.Conn.Call(RpcServiceName+".GetRowBetween", req, &resp)
 	if err != nil {
-		err=fmt.Errorf("GetRowBetweenRpc() error: %s", err)
+		err=fmt.Errorf("GetRowBetween() rpc error: %s", err)
+		return nil,err
+	}
+	return resp.Result,nil
+}
+
+//--------------GetPageCount()---------------------------------
+type GetPageCountRequest struct{
+	TableName string
+	PageSize int
+}
+type GetPageCountResponse struct{
+	Result int
+}
+func (d *DBcacheRpcClient)GetPageCount(tableName string,pageSize int) (pageCount int,err error){
+	req := GetPageCountRequest{tableName, pageSize}
+	resp:= GetPageCountResponse{0}
+	err = d.Conn.Call(RpcServiceName+".GetPageCount", req, &resp)
+	if err != nil {
+		err=fmt.Errorf("GetPageCount() rpc error: %s", err)
+		return 0,err
+	}
+	return resp.Result,nil
+}
+
+//--------------GetMultipageRows()---------------------------------
+type GetMultipageRowsRequest struct{
+	TableName string
+	StartPage int
+	PageNum int
+	PageSize int
+}
+type GetMultipageRowsResponse struct{
+	Result []map[string]string
+}
+func (d *DBcacheRpcClient)GetMultipageRows(tableName string,startPage int,pageNum int,pageSize int) (result []map[string]string, err error){
+	req := GetMultipageRowsRequest{tableName, startPage,pageNum,pageSize}
+	resp:= GetMultipageRowsResponse{make([]map[string]string,0)}
+	err = d.Conn.Call(RpcServiceName+".GetMultipageRows", req, &resp)
+	if err != nil {
+		err=fmt.Errorf("GetMultipageRows() rpc error: %s", err)
+		return nil,err
+	}
+	return resp.Result,nil
+}
+
+//--------------GetOnePageRow()---------------------------------
+type GetOnePageRowsRequest struct{
+	TableName string
+	Page int
+	PageSize int
+}
+type GetOnePageRowsResponse struct{
+	Result []map[string]string
+}
+func (d *DBcacheRpcClient)GetOnePageRows(tableName string,page int,pageSize int) (result []map[string]string, err error){
+	req := GetOnePageRowsRequest{tableName, page,pageSize}
+	resp:= GetOnePageRowsResponse{make([]map[string]string,0)}
+	err = d.Conn.Call(RpcServiceName+".GetOnePageRows", req, &resp)
+	if err != nil {
+		err=fmt.Errorf("GetOnePageRows() rpc error: %s", err)
 		return nil,err
 	}
 	return resp.Result,nil

@@ -845,6 +845,371 @@ func (m *GetRowBetweentream) GetResult() map[string]string {
 	return nil
 }
 
+//--------------GetPageCount()---------------------------------
+type GetPageCountRequest struct {
+	TableName            string   `protobuf:"bytes,1,opt,name=TableName,proto3" json:"TableName,omitempty"`
+	PageSize             int64    `protobuf:"varint,2,opt,name=PageSize,proto3" json:"PageSize,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetPageCountRequest) Reset()         { *m = GetPageCountRequest{} }
+func (m *GetPageCountRequest) String() string { return proto.CompactTextString(m) }
+func (*GetPageCountRequest) ProtoMessage()    {}
+func (*GetPageCountRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{18}
+}
+
+func (m *GetPageCountRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetPageCountRequest.Unmarshal(m, b)
+}
+func (m *GetPageCountRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetPageCountRequest.Marshal(b, m, deterministic)
+}
+func (m *GetPageCountRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetPageCountRequest.Merge(m, src)
+}
+func (m *GetPageCountRequest) XXX_Size() int {
+	return xxx_messageInfo_GetPageCountRequest.Size(m)
+}
+func (m *GetPageCountRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetPageCountRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetPageCountRequest proto.InternalMessageInfo
+
+func (m *GetPageCountRequest) GetTableName() string {
+	if m != nil {
+		return m.TableName
+	}
+	return ""
+}
+
+func (m *GetPageCountRequest) GetPageSize() int64 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+type GetPageCountResponse struct {
+	Result               int64    `protobuf:"varint,1,opt,name=Result,proto3" json:"Result,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetPageCountResponse) Reset()         { *m = GetPageCountResponse{} }
+func (m *GetPageCountResponse) String() string { return proto.CompactTextString(m) }
+func (*GetPageCountResponse) ProtoMessage()    {}
+func (*GetPageCountResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{19}
+}
+
+func (m *GetPageCountResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetPageCountResponse.Unmarshal(m, b)
+}
+func (m *GetPageCountResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetPageCountResponse.Marshal(b, m, deterministic)
+}
+func (m *GetPageCountResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetPageCountResponse.Merge(m, src)
+}
+func (m *GetPageCountResponse) XXX_Size() int {
+	return xxx_messageInfo_GetPageCountResponse.Size(m)
+}
+func (m *GetPageCountResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetPageCountResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetPageCountResponse proto.InternalMessageInfo
+
+func (m *GetPageCountResponse) GetResult() int64 {
+	if m != nil {
+		return m.Result
+	}
+	return 0
+}
+
+//--------------GetMultipageRows()---------------------------------
+type GetMultipageRowsRequest struct {
+	TableName            string   `protobuf:"bytes,1,opt,name=TableName,proto3" json:"TableName,omitempty"`
+	StartPage            int64    `protobuf:"varint,2,opt,name=StartPage,proto3" json:"StartPage,omitempty"`
+	PageNum              int64    `protobuf:"varint,3,opt,name=PageNum,proto3" json:"PageNum,omitempty"`
+	PageSize             int64    `protobuf:"varint,4,opt,name=pageSize,proto3" json:"pageSize,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetMultipageRowsRequest) Reset()         { *m = GetMultipageRowsRequest{} }
+func (m *GetMultipageRowsRequest) String() string { return proto.CompactTextString(m) }
+func (*GetMultipageRowsRequest) ProtoMessage()    {}
+func (*GetMultipageRowsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{20}
+}
+
+func (m *GetMultipageRowsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetMultipageRowsRequest.Unmarshal(m, b)
+}
+func (m *GetMultipageRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetMultipageRowsRequest.Marshal(b, m, deterministic)
+}
+func (m *GetMultipageRowsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetMultipageRowsRequest.Merge(m, src)
+}
+func (m *GetMultipageRowsRequest) XXX_Size() int {
+	return xxx_messageInfo_GetMultipageRowsRequest.Size(m)
+}
+func (m *GetMultipageRowsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetMultipageRowsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetMultipageRowsRequest proto.InternalMessageInfo
+
+func (m *GetMultipageRowsRequest) GetTableName() string {
+	if m != nil {
+		return m.TableName
+	}
+	return ""
+}
+
+func (m *GetMultipageRowsRequest) GetStartPage() int64 {
+	if m != nil {
+		return m.StartPage
+	}
+	return 0
+}
+
+func (m *GetMultipageRowsRequest) GetPageNum() int64 {
+	if m != nil {
+		return m.PageNum
+	}
+	return 0
+}
+
+func (m *GetMultipageRowsRequest) GetPageSize() int64 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+//服务器端流式 RPC
+type GetMultipageRowsResponse struct {
+	Result               *GetMultipageRowstream `protobuf:"bytes,1,opt,name=Result,proto3" json:"Result,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
+	XXX_unrecognized     []byte                 `json:"-"`
+	XXX_sizecache        int32                  `json:"-"`
+}
+
+func (m *GetMultipageRowsResponse) Reset()         { *m = GetMultipageRowsResponse{} }
+func (m *GetMultipageRowsResponse) String() string { return proto.CompactTextString(m) }
+func (*GetMultipageRowsResponse) ProtoMessage()    {}
+func (*GetMultipageRowsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{21}
+}
+
+func (m *GetMultipageRowsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetMultipageRowsResponse.Unmarshal(m, b)
+}
+func (m *GetMultipageRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetMultipageRowsResponse.Marshal(b, m, deterministic)
+}
+func (m *GetMultipageRowsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetMultipageRowsResponse.Merge(m, src)
+}
+func (m *GetMultipageRowsResponse) XXX_Size() int {
+	return xxx_messageInfo_GetMultipageRowsResponse.Size(m)
+}
+func (m *GetMultipageRowsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetMultipageRowsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetMultipageRowsResponse proto.InternalMessageInfo
+
+func (m *GetMultipageRowsResponse) GetResult() *GetMultipageRowstream {
+	if m != nil {
+		return m.Result
+	}
+	return nil
+}
+
+type GetMultipageRowstream struct {
+	Result               map[string]string `protobuf:"bytes,1,rep,name=Result,proto3" json:"Result,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *GetMultipageRowstream) Reset()         { *m = GetMultipageRowstream{} }
+func (m *GetMultipageRowstream) String() string { return proto.CompactTextString(m) }
+func (*GetMultipageRowstream) ProtoMessage()    {}
+func (*GetMultipageRowstream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{22}
+}
+
+func (m *GetMultipageRowstream) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetMultipageRowstream.Unmarshal(m, b)
+}
+func (m *GetMultipageRowstream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetMultipageRowstream.Marshal(b, m, deterministic)
+}
+func (m *GetMultipageRowstream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetMultipageRowstream.Merge(m, src)
+}
+func (m *GetMultipageRowstream) XXX_Size() int {
+	return xxx_messageInfo_GetMultipageRowstream.Size(m)
+}
+func (m *GetMultipageRowstream) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetMultipageRowstream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetMultipageRowstream proto.InternalMessageInfo
+
+func (m *GetMultipageRowstream) GetResult() map[string]string {
+	if m != nil {
+		return m.Result
+	}
+	return nil
+}
+
+//--------------GetOnePageRows()---------------------------------
+type GetOnePageRowsRequest struct {
+	TableName            string   `protobuf:"bytes,1,opt,name=TableName,proto3" json:"TableName,omitempty"`
+	Page                 int64    `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize             int64    `protobuf:"varint,3,opt,name=pageSize,proto3" json:"pageSize,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetOnePageRowsRequest) Reset()         { *m = GetOnePageRowsRequest{} }
+func (m *GetOnePageRowsRequest) String() string { return proto.CompactTextString(m) }
+func (*GetOnePageRowsRequest) ProtoMessage()    {}
+func (*GetOnePageRowsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{23}
+}
+
+func (m *GetOnePageRowsRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetOnePageRowsRequest.Unmarshal(m, b)
+}
+func (m *GetOnePageRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetOnePageRowsRequest.Marshal(b, m, deterministic)
+}
+func (m *GetOnePageRowsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOnePageRowsRequest.Merge(m, src)
+}
+func (m *GetOnePageRowsRequest) XXX_Size() int {
+	return xxx_messageInfo_GetOnePageRowsRequest.Size(m)
+}
+func (m *GetOnePageRowsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOnePageRowsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOnePageRowsRequest proto.InternalMessageInfo
+
+func (m *GetOnePageRowsRequest) GetTableName() string {
+	if m != nil {
+		return m.TableName
+	}
+	return ""
+}
+
+func (m *GetOnePageRowsRequest) GetPage() int64 {
+	if m != nil {
+		return m.Page
+	}
+	return 0
+}
+
+func (m *GetOnePageRowsRequest) GetPageSize() int64 {
+	if m != nil {
+		return m.PageSize
+	}
+	return 0
+}
+
+//服务器端流式 RPC
+type GetOnePageRowsResponse struct {
+	Result               *GetOnePageRowstream `protobuf:"bytes,1,opt,name=Result,proto3" json:"Result,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
+	XXX_unrecognized     []byte               `json:"-"`
+	XXX_sizecache        int32                `json:"-"`
+}
+
+func (m *GetOnePageRowsResponse) Reset()         { *m = GetOnePageRowsResponse{} }
+func (m *GetOnePageRowsResponse) String() string { return proto.CompactTextString(m) }
+func (*GetOnePageRowsResponse) ProtoMessage()    {}
+func (*GetOnePageRowsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{24}
+}
+
+func (m *GetOnePageRowsResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetOnePageRowsResponse.Unmarshal(m, b)
+}
+func (m *GetOnePageRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetOnePageRowsResponse.Marshal(b, m, deterministic)
+}
+func (m *GetOnePageRowsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOnePageRowsResponse.Merge(m, src)
+}
+func (m *GetOnePageRowsResponse) XXX_Size() int {
+	return xxx_messageInfo_GetOnePageRowsResponse.Size(m)
+}
+func (m *GetOnePageRowsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOnePageRowsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOnePageRowsResponse proto.InternalMessageInfo
+
+func (m *GetOnePageRowsResponse) GetResult() *GetOnePageRowstream {
+	if m != nil {
+		return m.Result
+	}
+	return nil
+}
+
+type GetOnePageRowstream struct {
+	Result               map[string]string `protobuf:"bytes,1,rep,name=Result,proto3" json:"Result,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *GetOnePageRowstream) Reset()         { *m = GetOnePageRowstream{} }
+func (m *GetOnePageRowstream) String() string { return proto.CompactTextString(m) }
+func (*GetOnePageRowstream) ProtoMessage()    {}
+func (*GetOnePageRowstream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_bedfbfc9b54e5600, []int{25}
+}
+
+func (m *GetOnePageRowstream) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetOnePageRowstream.Unmarshal(m, b)
+}
+func (m *GetOnePageRowstream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetOnePageRowstream.Marshal(b, m, deterministic)
+}
+func (m *GetOnePageRowstream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOnePageRowstream.Merge(m, src)
+}
+func (m *GetOnePageRowstream) XXX_Size() int {
+	return xxx_messageInfo_GetOnePageRowstream.Size(m)
+}
+func (m *GetOnePageRowstream) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOnePageRowstream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOnePageRowstream proto.InternalMessageInfo
+
+func (m *GetOnePageRowstream) GetResult() map[string]string {
+	if m != nil {
+		return m.Result
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*GetRowRequest)(nil), "pb.GetRowRequest")
 	proto.RegisterType((*GetRowResponse)(nil), "pb.GetRowResponse")
@@ -867,49 +1232,73 @@ func init() {
 	proto.RegisterType((*GetRowBetweenResponse)(nil), "pb.GetRowBetweenResponse")
 	proto.RegisterType((*GetRowBetweentream)(nil), "pb.GetRowBetweentream")
 	proto.RegisterMapType((map[string]string)(nil), "pb.GetRowBetweentream.ResultEntry")
+	proto.RegisterType((*GetPageCountRequest)(nil), "pb.GetPageCountRequest")
+	proto.RegisterType((*GetPageCountResponse)(nil), "pb.GetPageCountResponse")
+	proto.RegisterType((*GetMultipageRowsRequest)(nil), "pb.GetMultipageRowsRequest")
+	proto.RegisterType((*GetMultipageRowsResponse)(nil), "pb.GetMultipageRowsResponse")
+	proto.RegisterType((*GetMultipageRowstream)(nil), "pb.GetMultipageRowstream")
+	proto.RegisterMapType((map[string]string)(nil), "pb.GetMultipageRowstream.ResultEntry")
+	proto.RegisterType((*GetOnePageRowsRequest)(nil), "pb.GetOnePageRowsRequest")
+	proto.RegisterType((*GetOnePageRowsResponse)(nil), "pb.GetOnePageRowsResponse")
+	proto.RegisterType((*GetOnePageRowstream)(nil), "pb.GetOnePageRowstream")
+	proto.RegisterMapType((map[string]string)(nil), "pb.GetOnePageRowstream.ResultEntry")
 }
 
 func init() { proto.RegisterFile("grpc.proto", fileDescriptor_bedfbfc9b54e5600) }
 
 var fileDescriptor_bedfbfc9b54e5600 = []byte{
-	// 591 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0x4f, 0x6f, 0xd3, 0x4e,
-	0x10, 0x95, 0xe3, 0x36, 0xfa, 0x65, 0xf2, 0x6b, 0x49, 0xa7, 0x4e, 0x08, 0x51, 0x85, 0x22, 0x9f,
-	0x22, 0x90, 0x9c, 0x2a, 0x48, 0x50, 0x7a, 0x40, 0x6a, 0x9b, 0x60, 0x71, 0xa9, 0x90, 0xcb, 0x9f,
-	0x4b, 0x85, 0xe4, 0x24, 0x23, 0x5a, 0xe1, 0xd8, 0xc6, 0xde, 0x50, 0xf5, 0x88, 0x38, 0xf2, 0x59,
-	0xf9, 0x0e, 0xc8, 0xbb, 0x6b, 0x67, 0xfd, 0x07, 0x25, 0x2a, 0xe5, 0xb6, 0x3b, 0xfb, 0x3c, 0x6f,
-	0x76, 0xf6, 0xcd, 0x33, 0xc0, 0xe7, 0x28, 0x9c, 0x59, 0x61, 0x14, 0xb0, 0x00, 0x6b, 0xe1, 0xd4,
-	0x3c, 0x81, 0x1d, 0x9b, 0x98, 0x13, 0xdc, 0x38, 0xf4, 0x75, 0x49, 0x31, 0xc3, 0x03, 0x68, 0xbc,
-	0x73, 0xa7, 0x1e, 0x9d, 0xbb, 0x0b, 0xea, 0x6a, 0x7d, 0x6d, 0xd0, 0x70, 0x56, 0x01, 0x44, 0xd8,
-	0x7a, 0xfb, 0x85, 0x6e, 0xbb, 0x35, 0x7e, 0xc0, 0xd7, 0xe6, 0x0f, 0x0d, 0x76, 0xd3, 0x1c, 0x71,
-	0x18, 0xf8, 0x31, 0xe1, 0x73, 0xa8, 0x3b, 0x14, 0x2f, 0x3d, 0xd6, 0xd5, 0xfa, 0xfa, 0xa0, 0x39,
-	0x7a, 0x6c, 0x85, 0x53, 0x2b, 0x8f, 0xb1, 0x04, 0x60, 0xe2, 0xb3, 0xe8, 0xd6, 0x91, 0xe8, 0xde,
-	0x4b, 0x68, 0x2a, 0x61, 0x6c, 0x81, 0x9e, 0x90, 0x89, 0x2a, 0x92, 0x25, 0x1a, 0xb0, 0xfd, 0xcd,
-	0xf5, 0x96, 0x24, 0x0b, 0x10, 0x9b, 0xe3, 0xda, 0x91, 0x66, 0x5e, 0x42, 0xcb, 0x26, 0x76, 0x16,
-	0x78, 0xcb, 0x85, 0x7f, 0xe7, 0xbb, 0x60, 0x07, 0xea, 0x22, 0x45, 0x57, 0xe7, 0x51, 0xb9, 0x33,
-	0x9f, 0xc2, 0x9e, 0x92, 0x5d, 0xde, 0xb2, 0xa3, 0xdc, 0x92, 0x83, 0xc5, 0x2e, 0xe9, 0xe9, 0x98,
-	0xbc, 0xbf, 0xea, 0xe9, 0x00, 0x76, 0xd3, 0x14, 0x95, 0x64, 0x7a, 0x46, 0x36, 0x81, 0x07, 0x36,
-	0xb1, 0x8f, 0x57, 0x14, 0xd1, 0x66, 0x74, 0x06, 0x6c, 0x73, 0x74, 0xda, 0x42, 0xbe, 0x31, 0x5f,
-	0xf1, 0xf6, 0xc9, 0x34, 0x92, 0xf2, 0x49, 0x8e, 0xb2, 0x39, 0x42, 0xf9, 0x8a, 0x1c, 0x75, 0xc1,
-	0x22, 0x72, 0x17, 0x59, 0x19, 0x52, 0x04, 0xca, 0xd1, 0x1f, 0x45, 0xa0, 0x60, 0xee, 0x5b, 0x04,
-	0xdf, 0x35, 0xd8, 0x7f, 0x1f, 0xce, 0x5d, 0x46, 0xff, 0x48, 0x08, 0xd8, 0x87, 0xa6, 0x58, 0x7d,
-	0xe0, 0x15, 0x6c, 0xf1, 0x43, 0x35, 0x64, 0x5a, 0x60, 0xe4, 0x4b, 0x58, 0xf3, 0x80, 0x9f, 0xf2,
-	0xf8, 0xf8, 0xee, 0x35, 0x67, 0x2f, 0xab, 0xab, 0x2f, 0x3b, 0x84, 0x76, 0x21, 0xff, 0x9a, 0x82,
-	0xce, 0xa1, 0xf5, 0xc6, 0x8f, 0x29, 0xda, 0xdc, 0x15, 0x0e, 0xa0, 0x71, 0x16, 0xf8, 0xf3, 0x6b,
-	0x76, 0x1d, 0xf8, 0xb2, 0xa2, 0x55, 0x20, 0x99, 0x1d, 0x25, 0xdf, 0x1a, 0xf2, 0x4b, 0x30, 0x84,
-	0x4f, 0x9c, 0x12, 0xbb, 0x21, 0xf2, 0x37, 0xd6, 0xf4, 0x05, 0x73, 0x23, 0xc6, 0xc9, 0x75, 0x47,
-	0x6c, 0x12, 0xe5, 0x4c, 0xfc, 0x39, 0xef, 0x86, 0xee, 0x24, 0x4b, 0xd3, 0x86, 0x76, 0x21, 0xbb,
-	0x2c, 0xc7, 0x2a, 0x48, 0xbd, 0xb3, 0x32, 0x2c, 0x09, 0xcd, 0xcb, 0xfd, 0xa7, 0x06, 0x58, 0x3e,
-	0xc6, 0xe3, 0x82, 0xe4, 0xcd, 0xea, 0x34, 0xf7, 0x2c, 0xfb, 0xd1, 0x2f, 0x1d, 0x9a, 0x76, 0x14,
-	0xce, 0xc6, 0xa7, 0x33, 0x77, 0x76, 0x45, 0x38, 0x84, 0xba, 0x20, 0xc5, 0x3d, 0xd5, 0x78, 0x79,
-	0x27, 0x7b, 0x58, 0xf6, 0x62, 0x3c, 0x82, 0x46, 0x66, 0x6f, 0x68, 0x48, 0x40, 0x6e, 0x84, 0x7a,
-	0xed, 0x42, 0x54, 0x7e, 0x39, 0x84, 0xba, 0x30, 0x2a, 0x41, 0x95, 0xf3, 0x3d, 0x41, 0x55, 0xf0,
-	0xb1, 0x17, 0xf0, 0x5f, 0xea, 0x01, 0xb8, 0xaf, 0x3a, 0x42, 0xfa, 0x91, 0x91, 0x0f, 0x8a, 0xcf,
-	0x0e, 0x35, 0x3c, 0x81, 0xff, 0x55, 0x1d, 0xe3, 0xc3, 0x04, 0x57, 0x31, 0xec, 0xbd, 0x6e, 0xf9,
-	0x40, 0x72, 0x8f, 0x61, 0x27, 0x37, 0x0a, 0x58, 0x82, 0xa6, 0xd3, 0xd7, 0x7b, 0x54, 0x71, 0xb2,
-	0x6a, 0x56, 0xa6, 0x67, 0xd1, 0xac, 0xe2, 0xb8, 0x88, 0x66, 0x95, 0x45, 0xff, 0x3a, 0xfd, 0xd9,
-	0x4a, 0x31, 0x08, 0xfe, 0x2a, 0xbd, 0x0b, 0xfe, 0x4a, 0xad, 0x1e, 0x6a, 0xd3, 0x3a, 0xff, 0x7f,
-	0x3f, 0xfb, 0x1d, 0x00, 0x00, 0xff, 0xff, 0xb8, 0x75, 0xc2, 0x3d, 0xcd, 0x07, 0x00, 0x00,
+	// 807 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x5b, 0x6f, 0xd3, 0x4c,
+	0x10, 0x95, 0xeb, 0xb4, 0x5f, 0x33, 0xf9, 0x5a, 0xda, 0x6d, 0x9a, 0x3a, 0xa6, 0x42, 0x95, 0x11,
+	0x52, 0x05, 0x52, 0x0a, 0x45, 0x82, 0x52, 0x04, 0x52, 0x6f, 0x44, 0x7d, 0xe8, 0x45, 0x2e, 0x97,
+	0x97, 0x0a, 0xc9, 0x49, 0x57, 0x6d, 0x44, 0x62, 0x1b, 0x7b, 0x4d, 0x55, 0xde, 0x10, 0x8f, 0x15,
+	0x0f, 0xfc, 0x2f, 0x7e, 0x14, 0xf2, 0x5e, 0xec, 0xdd, 0xb5, 0xab, 0x84, 0x12, 0x9e, 0xb2, 0xbb,
+	0x33, 0x99, 0x39, 0x7b, 0xe6, 0x78, 0x67, 0x00, 0xce, 0xa3, 0xb0, 0xdb, 0x0a, 0xa3, 0x80, 0x04,
+	0x68, 0x22, 0xec, 0x38, 0x5b, 0x30, 0xd3, 0xc6, 0xc4, 0x0d, 0x2e, 0x5d, 0xfc, 0x39, 0xc1, 0x31,
+	0x41, 0xcb, 0x50, 0x7d, 0xeb, 0x75, 0xfa, 0xf8, 0xd0, 0x1b, 0x60, 0xcb, 0x58, 0x31, 0x56, 0xab,
+	0x6e, 0x7e, 0x80, 0x10, 0x54, 0x8e, 0x3f, 0xe1, 0x2b, 0x6b, 0x82, 0x1a, 0xe8, 0xda, 0xf9, 0x6e,
+	0xc0, 0xac, 0x88, 0x11, 0x87, 0x81, 0x1f, 0x63, 0xf4, 0x0c, 0xa6, 0x5c, 0x1c, 0x27, 0x7d, 0x62,
+	0x19, 0x2b, 0xe6, 0x6a, 0x6d, 0xfd, 0x5e, 0x2b, 0xec, 0xb4, 0x54, 0x9f, 0x16, 0x73, 0xd8, 0xf3,
+	0x49, 0x74, 0xe5, 0x72, 0x6f, 0xfb, 0x05, 0xd4, 0xa4, 0x63, 0x34, 0x07, 0x66, 0x9a, 0x8c, 0xa1,
+	0x48, 0x97, 0xa8, 0x0e, 0x93, 0x5f, 0xbc, 0x7e, 0x82, 0x39, 0x00, 0xb6, 0xd9, 0x9c, 0xd8, 0x30,
+	0x9c, 0x53, 0x98, 0x6b, 0x63, 0xb2, 0x13, 0xf4, 0x93, 0x81, 0x7f, 0xeb, 0xbb, 0xa0, 0x06, 0x4c,
+	0xb1, 0x10, 0x96, 0x49, 0x4f, 0xf9, 0xce, 0x79, 0x04, 0xf3, 0x52, 0x74, 0x7e, 0xcb, 0x86, 0x74,
+	0x4b, 0xea, 0xcc, 0x76, 0x29, 0xa7, 0xbb, 0xb8, 0xff, 0x57, 0x9c, 0xae, 0xc2, 0xac, 0x08, 0x51,
+	0x9a, 0xcc, 0xcc, 0x92, 0xed, 0xc1, 0x9d, 0x36, 0x26, 0x1f, 0x2e, 0x70, 0x84, 0x47, 0x4b, 0x57,
+	0x87, 0x49, 0xea, 0x2d, 0x28, 0xa4, 0x1b, 0xe7, 0x35, 0xa5, 0x8f, 0x87, 0xe1, 0x29, 0x1f, 0x2a,
+	0x29, 0x6b, 0xeb, 0x88, 0x57, 0x91, 0x7a, 0x9d, 0x90, 0x08, 0x7b, 0x83, 0x0c, 0x06, 0x17, 0x81,
+	0x64, 0xba, 0x51, 0x04, 0x92, 0xcf, 0xb8, 0x45, 0xf0, 0xcd, 0x80, 0x85, 0x77, 0xe1, 0x99, 0x47,
+	0xf0, 0x3f, 0x12, 0x02, 0x5a, 0x81, 0x1a, 0x5b, 0xbd, 0xa7, 0x08, 0x2a, 0xd4, 0x28, 0x1f, 0x39,
+	0x2d, 0xa8, 0xab, 0x10, 0x86, 0x14, 0xf0, 0xa3, 0xea, 0x1f, 0xdf, 0x1e, 0x73, 0x56, 0x59, 0x53,
+	0xae, 0xec, 0x1a, 0x2c, 0x6a, 0xf1, 0x87, 0x00, 0x3a, 0x84, 0xb9, 0x7d, 0x3f, 0xc6, 0xd1, 0xe8,
+	0xaf, 0xc2, 0x32, 0x54, 0x77, 0x02, 0xff, 0xac, 0x47, 0x7a, 0x81, 0xcf, 0x11, 0xe5, 0x07, 0xe9,
+	0xb7, 0x23, 0xc5, 0x1b, 0x92, 0xfc, 0x14, 0xea, 0xec, 0x9d, 0xd8, 0xc6, 0xe4, 0x12, 0x63, 0x7f,
+	0x64, 0x4d, 0x9f, 0x10, 0x2f, 0x22, 0x34, 0xb9, 0xe9, 0xb2, 0x4d, 0xaa, 0x9c, 0x3d, 0xff, 0x8c,
+	0xb2, 0x61, 0xba, 0xe9, 0xd2, 0x69, 0xc3, 0xa2, 0x16, 0x9d, 0xc3, 0x69, 0x69, 0x52, 0x6f, 0xe4,
+	0x0f, 0x16, 0x77, 0x55, 0xe5, 0x7e, 0x6d, 0x00, 0x2a, 0x9a, 0xd1, 0xa6, 0x26, 0x79, 0xa7, 0x3c,
+	0xcc, 0xb8, 0x65, 0x7f, 0x04, 0x0b, 0x6d, 0x4c, 0x8e, 0xbd, 0x73, 0xbc, 0x13, 0x24, 0x3e, 0x19,
+	0x8d, 0x33, 0x1b, 0xa6, 0xd3, 0x7f, 0x9c, 0xf4, 0xbe, 0x62, 0x4e, 0x5b, 0xb6, 0x4f, 0x35, 0xac,
+	0x06, 0x1c, 0x52, 0xb5, 0x6b, 0x03, 0x96, 0xda, 0x98, 0x1c, 0x24, 0x7d, 0xd2, 0x0b, 0xbd, 0x73,
+	0xec, 0x06, 0x97, 0xf1, 0xc8, 0xd2, 0xa1, 0xc5, 0x4a, 0x73, 0x71, 0x18, 0xf9, 0x01, 0xb2, 0xe0,
+	0xbf, 0xf4, 0xf7, 0x30, 0x19, 0xf0, 0x2a, 0x8a, 0x6d, 0x8a, 0x3e, 0x14, 0xe8, 0x2b, 0x0c, 0xbd,
+	0xd8, 0x3b, 0x07, 0x60, 0x15, 0xc1, 0xf0, 0x1b, 0x3c, 0xd1, 0x0a, 0xdd, 0xe4, 0x15, 0x52, 0xbc,
+	0xd5, 0x5a, 0xff, 0x34, 0xa8, 0x6a, 0x8a, 0x1e, 0xe8, 0x95, 0x56, 0xee, 0x07, 0x37, 0x06, 0x1b,
+	0x77, 0xc5, 0x31, 0x85, 0x74, 0xe4, 0xe3, 0xe3, 0x3f, 0x62, 0x1b, 0x41, 0x25, 0xcc, 0x89, 0xa6,
+	0x6b, 0x85, 0x49, 0x53, 0x63, 0x72, 0x1f, 0x1a, 0x7a, 0x1a, 0xce, 0xe3, 0x9a, 0xc6, 0xe3, 0x12,
+	0xbf, 0xba, 0xe4, 0xab, 0xb2, 0xf8, 0xc3, 0xa0, 0x22, 0xd5, 0xed, 0xe8, 0xa5, 0xc6, 0xe1, 0xfd,
+	0x1b, 0x02, 0x8d, 0x99, 0xc1, 0xf5, 0x5f, 0x93, 0x50, 0x6b, 0x47, 0x61, 0x77, 0x77, 0xbb, 0xeb,
+	0x75, 0x2f, 0xe8, 0x85, 0xd8, 0x87, 0x8a, 0xe6, 0xe5, 0x61, 0x85, 0xb2, 0x6a, 0xa3, 0xe2, 0xfc,
+	0x82, 0x36, 0xa0, 0x9a, 0x8d, 0x04, 0xa8, 0xce, 0x1d, 0x94, 0xb6, 0x63, 0x2f, 0x6a, 0xa7, 0x39,
+	0x77, 0xac, 0xb9, 0xb3, 0x54, 0xca, 0xac, 0xc0, 0x52, 0x69, 0xbd, 0xff, 0x39, 0x4c, 0x8b, 0xbe,
+	0x89, 0x16, 0xe4, 0x2e, 0x2a, 0xfe, 0x54, 0x57, 0x0f, 0xd9, 0xdf, 0x1e, 0x1b, 0x68, 0x0b, 0xfe,
+	0x97, 0xdf, 0x7e, 0x44, 0xab, 0x54, 0xd2, 0x20, 0x6d, 0xab, 0x68, 0xe0, 0xb9, 0x77, 0x61, 0x46,
+	0x69, 0x1f, 0xa8, 0xe0, 0x2a, 0xb4, 0x67, 0x37, 0x4b, 0x2c, 0x39, 0x59, 0x59, 0x0f, 0x60, 0x64,
+	0xe9, 0x2d, 0x86, 0x91, 0x55, 0x6c, 0x14, 0x6f, 0xc4, 0x80, 0xca, 0x1f, 0x50, 0x96, 0xbf, 0xac,
+	0x47, 0xd8, 0xcd, 0x12, 0x8b, 0x4c, 0x85, 0xfc, 0xa4, 0x21, 0x21, 0x58, 0xfd, 0xd5, 0xb4, 0xad,
+	0xa2, 0x81, 0x43, 0x39, 0xa2, 0x33, 0x92, 0xf2, 0x71, 0xa3, 0xbb, 0x65, 0x9f, 0xbc, 0x08, 0xb5,
+	0x5c, 0x6e, 0xcc, 0x30, 0xed, 0xd3, 0x99, 0x49, 0x52, 0x3a, 0x6a, 0x16, 0xd5, 0x2f, 0x82, 0xd9,
+	0x65, 0x26, 0x11, 0xaa, 0x33, 0x45, 0x47, 0xfa, 0xa7, 0xbf, 0x03, 0x00, 0x00, 0xff, 0xff, 0x0d,
+	0x2a, 0xa5, 0xb5, 0xe0, 0x0b, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -934,6 +1323,9 @@ type GrpcDBcacheClient interface {
 	InsertRow(ctx context.Context, in *InsertRowRequest, opts ...grpc.CallOption) (*InsertRowResponse, error)
 	//服务器端流式 RPC,注意关键字 stream，声明其为一个流方法。
 	GetRowBetween(ctx context.Context, in *GetRowBetweenRequest, opts ...grpc.CallOption) (GrpcDBcache_GetRowBetweenClient, error)
+	GetPageCount(ctx context.Context, in *GetPageCountRequest, opts ...grpc.CallOption) (*GetPageCountResponse, error)
+	GetMultipageRows(ctx context.Context, in *GetMultipageRowsRequest, opts ...grpc.CallOption) (GrpcDBcache_GetMultipageRowsClient, error)
+	GetOnePageRows(ctx context.Context, in *GetOnePageRowsRequest, opts ...grpc.CallOption) (GrpcDBcache_GetOnePageRowsClient, error)
 }
 
 type grpcDBcacheClient struct {
@@ -1062,6 +1454,79 @@ func (x *grpcDBcacheGetRowBetweenClient) Recv() (*GetRowBetweenResponse, error) 
 	return m, nil
 }
 
+func (c *grpcDBcacheClient) GetPageCount(ctx context.Context, in *GetPageCountRequest, opts ...grpc.CallOption) (*GetPageCountResponse, error) {
+	out := new(GetPageCountResponse)
+	err := c.cc.Invoke(ctx, "/pb.GrpcDBcache/GetPageCount", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *grpcDBcacheClient) GetMultipageRows(ctx context.Context, in *GetMultipageRowsRequest, opts ...grpc.CallOption) (GrpcDBcache_GetMultipageRowsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_GrpcDBcache_serviceDesc.Streams[2], "/pb.GrpcDBcache/GetMultipageRows", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcDBcacheGetMultipageRowsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GrpcDBcache_GetMultipageRowsClient interface {
+	Recv() (*GetMultipageRowsResponse, error)
+	grpc.ClientStream
+}
+
+type grpcDBcacheGetMultipageRowsClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcDBcacheGetMultipageRowsClient) Recv() (*GetMultipageRowsResponse, error) {
+	m := new(GetMultipageRowsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *grpcDBcacheClient) GetOnePageRows(ctx context.Context, in *GetOnePageRowsRequest, opts ...grpc.CallOption) (GrpcDBcache_GetOnePageRowsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_GrpcDBcache_serviceDesc.Streams[3], "/pb.GrpcDBcache/GetOnePageRows", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpcDBcacheGetOnePageRowsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type GrpcDBcache_GetOnePageRowsClient interface {
+	Recv() (*GetOnePageRowsResponse, error)
+	grpc.ClientStream
+}
+
+type grpcDBcacheGetOnePageRowsClient struct {
+	grpc.ClientStream
+}
+
+func (x *grpcDBcacheGetOnePageRowsClient) Recv() (*GetOnePageRowsResponse, error) {
+	m := new(GetOnePageRowsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // GrpcDBcacheServer is the server API for GrpcDBcache service.
 type GrpcDBcacheServer interface {
 	GetRow(context.Context, *GetRowRequest) (*GetRowResponse, error)
@@ -1074,6 +1539,9 @@ type GrpcDBcacheServer interface {
 	InsertRow(context.Context, *InsertRowRequest) (*InsertRowResponse, error)
 	//服务器端流式 RPC,注意关键字 stream，声明其为一个流方法。
 	GetRowBetween(*GetRowBetweenRequest, GrpcDBcache_GetRowBetweenServer) error
+	GetPageCount(context.Context, *GetPageCountRequest) (*GetPageCountResponse, error)
+	GetMultipageRows(*GetMultipageRowsRequest, GrpcDBcache_GetMultipageRowsServer) error
+	GetOnePageRows(*GetOnePageRowsRequest, GrpcDBcache_GetOnePageRowsServer) error
 }
 
 // UnimplementedGrpcDBcacheServer can be embedded to have forward compatible implementations.
@@ -1103,6 +1571,15 @@ func (*UnimplementedGrpcDBcacheServer) InsertRow(ctx context.Context, req *Inser
 }
 func (*UnimplementedGrpcDBcacheServer) GetRowBetween(req *GetRowBetweenRequest, srv GrpcDBcache_GetRowBetweenServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetRowBetween not implemented")
+}
+func (*UnimplementedGrpcDBcacheServer) GetPageCount(ctx context.Context, req *GetPageCountRequest) (*GetPageCountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPageCount not implemented")
+}
+func (*UnimplementedGrpcDBcacheServer) GetMultipageRows(req *GetMultipageRowsRequest, srv GrpcDBcache_GetMultipageRowsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetMultipageRows not implemented")
+}
+func (*UnimplementedGrpcDBcacheServer) GetOnePageRows(req *GetOnePageRowsRequest, srv GrpcDBcache_GetOnePageRowsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetOnePageRows not implemented")
 }
 
 func RegisterGrpcDBcacheServer(s *grpc.Server, srv GrpcDBcacheServer) {
@@ -1259,6 +1736,66 @@ func (x *grpcDBcacheGetRowBetweenServer) Send(m *GetRowBetweenResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _GrpcDBcache_GetPageCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPageCountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GrpcDBcacheServer).GetPageCount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.GrpcDBcache/GetPageCount",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GrpcDBcacheServer).GetPageCount(ctx, req.(*GetPageCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GrpcDBcache_GetMultipageRows_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetMultipageRowsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcDBcacheServer).GetMultipageRows(m, &grpcDBcacheGetMultipageRowsServer{stream})
+}
+
+type GrpcDBcache_GetMultipageRowsServer interface {
+	Send(*GetMultipageRowsResponse) error
+	grpc.ServerStream
+}
+
+type grpcDBcacheGetMultipageRowsServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcDBcacheGetMultipageRowsServer) Send(m *GetMultipageRowsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _GrpcDBcache_GetOnePageRows_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetOnePageRowsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(GrpcDBcacheServer).GetOnePageRows(m, &grpcDBcacheGetOnePageRowsServer{stream})
+}
+
+type GrpcDBcache_GetOnePageRowsServer interface {
+	Send(*GetOnePageRowsResponse) error
+	grpc.ServerStream
+}
+
+type grpcDBcacheGetOnePageRowsServer struct {
+	grpc.ServerStream
+}
+
+func (x *grpcDBcacheGetOnePageRowsServer) Send(m *GetOnePageRowsResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _GrpcDBcache_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "pb.GrpcDBcache",
 	HandlerType: (*GrpcDBcacheServer)(nil),
@@ -1287,6 +1824,10 @@ var _GrpcDBcache_serviceDesc = grpc.ServiceDesc{
 			MethodName: "InsertRow",
 			Handler:    _GrpcDBcache_InsertRow_Handler,
 		},
+		{
+			MethodName: "GetPageCount",
+			Handler:    _GrpcDBcache_GetPageCount_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -1297,6 +1838,16 @@ var _GrpcDBcache_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetRowBetween",
 			Handler:       _GrpcDBcache_GetRowBetween_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetMultipageRows",
+			Handler:       _GrpcDBcache_GetMultipageRows_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetOnePageRows",
+			Handler:       _GrpcDBcache_GetOnePageRows_Handler,
 			ServerStreams: true,
 		},
 	},

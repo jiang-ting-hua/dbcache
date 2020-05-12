@@ -179,7 +179,7 @@ func (d *DBcacheGrpcClient) GetRowBetween(tableName string, start int, end int) 
 	stream, err := d.Client.GetRowBetween(context.Background(), &req)
 	if err != nil {
 		err = fmt.Errorf("grpc GetRowBetween() error: %s", err)
-		return nil,err
+		return nil, err
 	}
 
 	for {
@@ -188,7 +188,83 @@ func (d *DBcacheGrpcClient) GetRowBetween(tableName string, start int, end int) 
 			break
 		}
 		if err != nil {
-			return nil,err
+			return nil, err
+		}
+		result = append(result, resp.Result.Result)
+	}
+	return result, nil
+}
+
+//--------------GetPageCount()---------------------------------
+//参数说明:tableName,缓存的表名,pageSize: 每页多少行
+func (d *DBcacheGrpcClient) GetPageCount(tableName string, pageSize int) (result int, err error) {
+	//组建请求参数
+	req := pb.GetPageCountRequest{
+		TableName: tableName,
+		PageSize:  int64(pageSize),
+	}
+	//调用接口
+	resp, err := d.Client.GetPageCount(context.Background(), &req)
+	if err != nil {
+		err = fmt.Errorf("grpc GetPageCount() error: %s", err)
+		return 0, err
+	}
+	return int(resp.Result), nil
+}
+
+//--------------GetMultipageRows()---------------------------------
+//参数说明:tableName,缓存的表名,startPage,开始页,pageNum多少页,pageSize参数是每页行数大小
+func (d *DBcacheGrpcClient) GetMultipageRows(tableName string, startPage int, pageNum int, pageSize int) (result []map[string]string, err error) {
+	//组建请求参数
+	req := pb.GetMultipageRowsRequest{
+		TableName: tableName,
+		StartPage: int64(startPage),
+		PageNum:   int64(pageNum),
+		PageSize:  int64(pageSize),
+	}
+	//调用接口
+	stream, err := d.Client.GetMultipageRows(context.Background(), &req)
+	if err != nil {
+		err = fmt.Errorf("grpc GetMultipageRows() error: %s", err)
+		return nil, err
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, resp.Result.Result)
+	}
+	return result, nil
+}
+
+//--------------GetOnePageRows()---------------------------------
+//参数说明:tableName,缓存的表名,page参数是页码,pageSize参数是每页行数大小
+func (d *DBcacheGrpcClient) GetOnePageRows(tableName string, page int,pageSize int) (result []map[string]string, err error) {
+	//组建请求参数
+	req := pb.GetOnePageRowsRequest{
+		TableName: tableName,
+		Page: int64(page),
+		PageSize:   int64(pageSize),
+	}
+	//调用接口
+	stream, err := d.Client.GetOnePageRows(context.Background(), &req)
+	if err != nil {
+		err = fmt.Errorf("grpc GetOnePageRows() error: %s", err)
+		return nil, err
+	}
+
+	for {
+		resp, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
 		}
 		result = append(result, resp.Result.Result)
 	}

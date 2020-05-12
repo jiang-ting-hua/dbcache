@@ -1221,10 +1221,63 @@ func (d *DBcache) GetRowBetween(start int, end int) (result []map[string]string)
 
 	return result
 }
-//用于分页,获取总页数.pageRows参数是每页多少行
-func (d *DBcache) GetPageCount(pageRows int) (pageCount int) {
-	pageCount = int(math.Ceil(float64(d.RowCount) / float64(pageRows)))
-	return
+//用于分页,获取总页数.pageSize参数是每页行数大小
+func (d *DBcache) GetPageCount(pageSize int) (result int) {
+	if pageSize <= 0{
+		return 0
+	}
+	result = int(math.Ceil(float64(d.RowCount) / float64(pageSize)))
+	return result
+}
+
+//用于分页,根据指定开始页,获取多少页,每页行数.返回数据.参数说明:startPage,开始页,pageNum多少页,pageSize参数是每页行数大小
+func (d *DBcache) GetMultipageRows(startPage int,pageNum int,pageSize int) (result []map[string]string) {
+	if pageSize <= 0{
+		return nil
+	}
+	//获取总页数
+	pageCount := d.GetPageCount(pageSize)
+	if startPage <= 0 {
+		startPage = 1
+	}
+	if startPage > pageCount {
+		startPage = pageCount
+	}
+	var startRow,endRow int
+	if startPage==1 {
+		startRow=0
+		endRow=pageNum*pageSize -1
+	}else{
+		startRow =(startPage-1)*pageSize -1
+		endRow =(startPage+pageNum)*pageSize  -1
+	}
+	result = d.GetRowBetween(startRow, endRow)
+	return result
+}
+//用于分页,根据页码和每页行数大小,返回数据.参数说明:page参数是页码,pageSize参数是每页行数大小
+func (d *DBcache) GetOnePageRows(page int,pageSize int) (result []map[string]string) {
+	if pageSize <= 0{
+		return nil
+	}
+	//获取总页数
+	pageCount := d.GetPageCount(pageSize)
+	if page <= 0 {
+		page = 1
+	}
+	if page > pageCount {
+		page = pageCount
+	}
+
+	var startRow,endRow int
+	if page==1 {
+		startRow=0
+		endRow=pageSize
+	}else{
+		startRow =(page-1)*pageSize -1
+		endRow =page*pageSize  -1
+	}
+	result = d.GetRowBetween(startRow, endRow)
+	return result
 }
 
 //关闭打开的对象

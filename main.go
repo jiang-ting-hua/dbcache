@@ -4,6 +4,7 @@ import (
 	"dbcache/cache"
 	"dbcache/conf"
 	"dbcache/db"
+	"dbcache/grpcserver"
 	"dbcache/logs" //日志库
 	"fmt"
 )
@@ -102,12 +103,12 @@ func main() {
 	//	return
 	//}
 	//
-	////启动Grpc,配置IP地址和端口,在config.conf配置文件中.
-	//err = grpcserver.GrpcRun()
-	//if err!=nil{
-	//	fmt.Println("GRPC service failed",err)
-	//	return
-	//}
+	//启动Grpc,配置IP地址和端口,在config.conf配置文件中.
+	err = grpcserver.GrpcRun()
+	if err!=nil{
+		fmt.Println("GRPC service failed",err)
+		return
+	}
 
 
 	// 以下为users表增删改查的样例.
@@ -128,11 +129,6 @@ func main() {
 		fmt.Printf("%s=%s, ", k, v)
 	}
 	fmt.Println()
-	//bytes, err := json.Marshal(result)
-	//if err!=nil{
-	//	fmt.Println(err)
-	//}
-	//fmt.Println(string(bytes))
 
 	//二. GetColumn:根据主键,取得某列的数据
 	fmt.Println("二. GetColumn().根据主键,取得某列的数据")
@@ -211,6 +207,37 @@ func main() {
 		}
 		fmt.Println()
 	}
+
+	//九,GetPageCount():获取总页数.用于页面分页显示.
+	fmt.Printf("九,GetPageCount():获取总页数.\n")
+	pageSize:=15  //每页15行
+	page:= UsersCache.GetPageCount(pageSize)
+	fmt.Printf("九,GetPageCount():每页%d行,获取总页数:%d\n",pageSize,page)
+
+	//十,GetMultipageRows():用于分页,根据指定开始页,获取多少页,每页行数.返回多页行数据.
+	//参数说明:startPage,开始页,pageNum多少页,pageSize参数是每页行数大小
+	fmt.Printf("十 , GetMultipageRows():用于分页,根据指定开始页,获取多少页,每页行数大小.返回数据.\n")
+	rows = UsersCache.GetMultipageRows(5, 2,10)
+	for i, rowMap := range rows {
+		fmt.Printf(" 第%d行 ", i)
+		for k, v := range rowMap {
+			fmt.Printf(" %s=%s, ", k, v)
+		}
+		fmt.Println()
+	}
+
+	//十一,GetOnePageRows():用于分页,根据页码和每页行数大小,返回单页行数据.page参数是页码,pageSize参数是每页行数大小
+	//参数说明:page参数是页码,pageSize参数是每页行数大小
+	fmt.Printf("十 , GetOnePageRows():用于分页,根据页码和每页行数大小,返回数据.\n")
+	rows  = UsersCache.GetOnePageRows(5, 10)
+	for i, rowMap := range rows {
+		fmt.Printf(" 第%d行 ", i)
+		for k, v := range rowMap {
+			fmt.Printf(" %s=%s, ", k, v)
+		}
+		fmt.Println()
+	}
+
 
 	//Goods表操作----------------------------------------------------------
 	fmt.Println("以下是对Goods表操作.")
