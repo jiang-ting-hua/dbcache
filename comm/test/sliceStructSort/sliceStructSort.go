@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-//以切片中结构体字段排序,切片中数据是指针结构体(结构体中可以是所有类型)
-//(注意排序对象是:interface{})数据是切片,切片中每个数据是指针结构体.以结构体中字段索引号排序.(注意结构体首字母要大写)
+//以切片中结构体字段排序,切片中数据是结构体(结构体可以是指针结构体,也可以不是指针结构体)(结构体中可以是所有类型)
+//(注意排序对象是:interface{})数据是切片,切片中每个数据是结构体.以结构体中字段索引号排序.(注意结构体首字母要大写)
 type SliceStructData struct {
 	Data            interface{}                                     //需要排序的切片
 	SortStructField int                                             //以结构体中字段索引排序.
@@ -113,21 +113,30 @@ func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, s
 	}
 	t := reflect.TypeOf(data)
 	v := reflect.ValueOf(data)
-	if v.Len() <= 1 {
-		return nil, nil
+	if t.Kind() == reflect.Ptr{
+		t=t.Elem()
+		v=v.Elem()
 	}
 
 	if t.Kind() != reflect.Slice {
 		err = fmt.Errorf("必须是一个切片")
 		return nil, err
 	}
-	if t.Elem().Kind() != reflect.Ptr || v.Index(0).Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("切片里的结构体必须是一个指针结构体")
+
+	if v.Len() < 1 {
+		return nil, nil
+	}
+	structV:=v.Index(0)
+	if structV.Kind()== reflect.Ptr{
+		structV=structV.Elem()
+	}
+	if structV.Kind() != reflect.Struct {
+		err = fmt.Errorf("切片里的结构体必须是一个结构体")
 		return nil, err
 	}
-	numField := v.Index(0).Elem().NumField()
+	numField := structV.NumField()
 	if sortStructField > numField-1 || sortStructField < 0 {
-		err = fmt.Errorf("切片里的结构体字段索引错误")
+		err = fmt.Errorf("排序的字段未在结构体中,排序的字段索引错误.")
 		return nil, err
 	}
 
@@ -139,7 +148,7 @@ func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, s
 		SwapFunc:        swapFunc,
 	}
 
-	switch v.Index(0).Elem().Field(sortStructField).Kind() {
+	switch structV.Field(sortStructField).Kind() {
 	case reflect.String:
 		sortObj.CompFunc = func(data1, data2 interface{}, isAsc bool) bool {
 			if isAsc {
@@ -173,7 +182,7 @@ func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, s
 			}
 		}
 	default:
-		err = fmt.Errorf("切片类型不能是:%s", t.Kind())
+		err = fmt.Errorf("结构体的排序字段不能是:%s", t.Kind())
 		return nil, err
 	}
 	return sortObj, nil
@@ -181,9 +190,11 @@ func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, s
 
 func (s *SliceStructData) QuickSort() {
 	rand.Seed(time.Now().UnixNano())
-	t := reflect.TypeOf(s.Data)
 	v := reflect.ValueOf(s.Data)
-	if t.Kind() != reflect.Slice {
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	if v.Kind() != reflect.Slice {
 		fmt.Println("必须是一个切片")
 		return
 	}
@@ -194,6 +205,7 @@ func (s *SliceStructData) QuickSort() {
 		s.QuickSortIndexGo(0, v.Len()-1, s.CompFunc, s.IsAsc)
 	}
 }
+
 
 //二分法插入排序.(升序排序)[用在内存中,不要用在硬盘等外存中,例如硬盘文件,顺序更快.]
 func (s *SliceStructData) BinarySearchSort(compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
@@ -219,18 +231,31 @@ func (s *SliceStructData) BinarySearchSort(compFunc func(data1, data2 interface{
 //获取切片的数据
 func (s *SliceStructData) GetValue(idx int) (value interface{}) {
 	v := reflect.ValueOf(s.Data)
-	switch v.Index(idx).Elem().Field(s.SortStructField).Kind() {
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	structV:=v.Index(idx)
+	if structV.Kind() == reflect.Ptr{
+		structV=structV.Elem()
+	}
+	reflectValue:=structV.Field(s.SortStructField)
+	switch reflectValue.Kind() {
 	case reflect.String:
-		value = v.Index(idx).Elem().Field(s.SortStructField).String()
+		value = reflectValue.String()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Int()
+		value = reflectValue.Int()
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Uint()
+		value = reflectValue.Uint()
 	case reflect.Float32, reflect.Float64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Float()
+		value = reflectValue.Float()
+		//case reflect.Bool:
+		//	value = reflectValue.Bool()
+		//case reflect.Ptr:
+		//	value = reflectValue.Elem().Addr()
 	}
 	return value
 }
+
 
 //二分法插入排序,查找位置.(升序排序).start开始位置,end结束位置,cur当前位置
 func (s *SliceStructData) FindLocation(start, end, cur int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) int {

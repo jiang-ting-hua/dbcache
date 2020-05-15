@@ -2,6 +2,7 @@ package main
 //此文件为样例.
 import (
 	"dbcache/cache"
+	"dbcache/comm"
 	"dbcache/conf"
 	"dbcache/db"
 	"dbcache/grpcserver"
@@ -66,6 +67,17 @@ import (
 	China Standard Time UT+8:00 中国
 	Cuba Standard Time UT-4:00 古巴
 */
+//用于测试user表,将map数据转换为结构体,首字母要大小
+type user struct {
+	Uid string
+	Age string
+	Price string
+	Name string
+	Address string
+	Password string
+	Create_date string
+	Update_date string
+}
 
 func main() {
 	//初始化日志库
@@ -130,6 +142,14 @@ func main() {
 	}
 	fmt.Println()
 
+	//将map数据转换为struct.
+	tt:=&user{}
+	err = comm.MapToStruct(result, tt)
+	if err!=nil{
+		fmt.Println(err)
+	}
+    fmt.Println(*tt)
+
 	//二. GetColumn:根据主键,取得某列的数据
 	fmt.Println("二. GetColumn().根据主键,取得某列的数据")
 	v, err := UsersCache.GetColumn("00YS0SW2N4NT7K8HP13E", "name")
@@ -140,7 +160,7 @@ func main() {
 
 	//三. DelRow:根据主键,删除该行数据
 	fmt.Printf("三. DelRow().根据主键,删除该行数据\n")
-	pkey = "013CIHW1G6HX8D6Q4H1Q"
+	pkey = "2222222221"
 	n, err := UsersCache.DelRow(pkey)
 	if err != nil {
 		logs.Info("a", "根据主键,删除行数据失败, err: %s", err)
@@ -162,6 +182,18 @@ func main() {
 		}
 		fmt.Println()
 	}
+
+	fmt.Println("切片map转切片struct")
+	ss:=make([]user,len(value))
+	err = comm.SliceMapToStruct(value, ss)
+	if err!=nil{
+		fmt.Println(err)
+	}
+	for _,vv:=range ss{
+		fmt.Println(vv)
+	}
+
+
 	//bytes, err = json.Marshal(value)
 	//if err!=nil{
 	//	fmt.Println(err)
@@ -190,7 +222,7 @@ func main() {
 
 	//七. InsertRow():插入一行数据
 	fmt.Printf("七. InsertRow().插入一行数据\n")
-	insert := "uid=22222211117,name=jth,address=重庆,password=888888,age=9999993,price=66.123456,create_date=2020-02-02 02:02:02,update_date=2020-01-01 01:01:01"
+	insert := "uid=22222211115,name=jth,address=重庆,password=888888,age=9999991,price=66.123456,create_date=2020-02-02 02:02:02,update_date=2020-01-01 01:01:01"
 	n, err = UsersCache.InsertRow(insert)
 	if err != nil {
 		logs.Error("a", "插入错误, err: %v", err)

@@ -351,6 +351,7 @@ func (d *DBcache) DelDbRow(key string) (n int64, err error) {
 	} else {
 		sqlString = "DELETE from " + d.TableConfig.GetTableName() + " where " + d.TableConfig.GetPkey() + "='" + key + "'"
 	}
+
 	//判断是实时更新,还是异步更新
 	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
@@ -1117,6 +1118,7 @@ func (d *DBcache) InsertRow(condition string) (n int64, err error) {
 func (d *DBcache) InsertDbRow(condition string) (n int64, err error) {
 	SqlStr := d.GetSqlStr(condition)
 	sqlString := "INSERT INTO " + d.TableConfig.GetTableName() + " SET " + SqlStr
+
 	if d.TableConfig.GetIsRealtime() == true {
 		rs, err := d.DbConn.Exec(sqlString)
 		if err != nil {

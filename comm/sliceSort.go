@@ -1,11 +1,11 @@
-package main
+package comm
 
 import (
 	"fmt"
 	"reflect"
 	"sync"
 )
-//(注意排序对象是:interface{})数据是切片,以接口接收切片对象,排序对象是,字符串切片,整型切片,浮点切片
+//(注意排序对象是:interface{})数据是切片(例如:[]int,[]string,[]int64等),以接口接收切片对象,排序对象是,字符串切片,整型切片,浮点切片
 type SliceData struct {
 	Data     interface{}                                     //需要排序的切片
 	IsAsc    bool                                            //是否升序(true升序,false降序)
@@ -19,13 +19,17 @@ func NewSliceDataSort(data interface{}, isAsc bool) (sortObj *SliceData,err erro
 	}
 	t := reflect.TypeOf(data)
 	v := reflect.ValueOf(data)
-
-	if v.Len() <= 1 {
-		return nil,nil
+	if t.Kind() == reflect.Ptr{
+		t=t.Elem()
+		v=v.Elem()
 	}
+
 	if t.Kind() != reflect.Slice{
 		err=fmt.Errorf("必须是一个切片")
 		return nil,err
+	}
+	if v.Len() <= 1 {
+		return nil,nil
 	}
 
 	sortObj=&SliceData{
@@ -74,57 +78,13 @@ func NewSliceDataSort(data interface{}, isAsc bool) (sortObj *SliceData,err erro
 	return sortObj,nil
 }
 
-type aa struct{
-	dd string
-	yy int
-}
-func main4545() {
-	//Data := []string{"x", "a", "c", "z", "b"}
-
-	Data := []aa{aa{"yy",1},aa{"cc",2}}
-	test(Data)
-
-}
-func test(Data interface{}){
-	t := reflect.TypeOf(Data)
-	v := reflect.ValueOf(Data)
-	if t.Kind() != reflect.Slice{
-		fmt.Println("必须是一个切片")
-		return
-	}
-	fmt.Println(t.Kind())
-	fmt.Println(v.Kind())
-	//fmt.Println()
-	fmt.Println(v.Type())
-	fmt.Println(v.Index(0).Type())
-	fmt.Println(v.Index(0).Kind())
-	//fmt.Println(v.Len())
-	//fmt.Println()
-	//fmt.Println(v.Index(0))
-	//aa:=v.Index(0)
-	switch v.Index(0).Kind() {
-	case reflect.String:
-		fmt.Println("是一个字符串")
-	}
-}
-
-func main() {
-	tt:=[]string{"x", "a", "j","c", "z","f","b","dd","jo","twa","iaj","di"}
-	//tt:=[]int{1,11, 9, 2, 3,10, 7, 4,8,12, 6, 5}
-	fmt.Println(tt)
-	sortObj, err := NewSliceDataSort(tt, true)
-	if err!=nil {
-		fmt.Println(err)
-	}
-	sortObj.QuickSort()
-	fmt.Println(tt)
-
-}
 
 func (s *SliceData) QuickSort() {
-	t := reflect.TypeOf(s.Data)
 	v := reflect.ValueOf(s.Data)
-	if t.Kind() != reflect.Slice{
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	if v.Kind() != reflect.Slice{
 		fmt.Println("必须是一个切片")
 		return
 	}
@@ -158,15 +118,23 @@ func (s *SliceData)BinarySearchSort(compFunc func(data1, data2 interface{}, isAs
 //获取切片的数据
 func (s *SliceData)GetValue(idx int)(value interface{}){
 	v := reflect.ValueOf(s.Data)
-	switch v.Index(idx).Kind() {
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	reflectValue:=v.Index(idx)
+	switch reflectValue.Kind() {
 	case reflect.String:
-		value=v.Index(idx).String()
+		value=reflectValue.String()
 	case reflect.Int,reflect.Int8,reflect.Int16,reflect.Int32,reflect.Int64:
-		value=v.Index(idx).Int()
+		value=reflectValue.Int()
 	case reflect.Uint,reflect.Uint8,reflect.Uint16,reflect.Uint32,reflect.Uint64:
-		value=v.Index(idx).Uint()
+		value=reflectValue.Uint()
 	case reflect.Float32, reflect.Float64:
-		value=v.Index(idx).Float()
+		value=reflectValue.Float()
+	//case reflect.Bool:
+	//	value = reflectValue.Bool()
+	//case reflect.Ptr:
+	//	value = reflectValue.Elem().Addr()
 	}
 	return value
 }
@@ -239,24 +207,37 @@ func (s *SliceData)QuickSortIndexGo( left, right int, compFunc func(data1, data2
 //数据交换
 func (s *SliceData)Swap( i, j int) {
 	v := reflect.ValueOf(s.Data)
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	iValue:=v.Index(i)
+	jValue:=v.Index(j)
 	//交换数据
 	switch v.Index(0).Kind() {
 	case reflect.String:
-		tmp:=v.Index(i).String()
-		v.Index(i).SetString(v.Index(j).String())
-		v.Index(j).SetString(tmp)
+		tmp:=iValue.String()
+		iValue.SetString(jValue.String())
+		jValue.SetString(tmp)
 	case reflect.Int,reflect.Int8,reflect.Int16,reflect.Int32,reflect.Int64:
-		tmp:=v.Index(i).Int()
-		v.Index(i).SetInt(v.Index(j).Int())
-		v.Index(j).SetInt(tmp)
+		tmp:=iValue.Int()
+		iValue.SetInt(jValue.Int())
+		jValue.SetInt(tmp)
 	case reflect.Uint,reflect.Uint8,reflect.Uint16,reflect.Uint32,reflect.Uint64:
-		tmp:=v.Index(i).Uint()
-		v.Index(i).SetUint(v.Index(j).Uint())
-		v.Index(j).SetUint(tmp)
+		tmp:=iValue.Uint()
+		iValue.SetUint(jValue.Uint())
+		jValue.SetUint(tmp)
 	case reflect.Float32, reflect.Float64:
-		tmp:=v.Index(i).Float()
-		v.Index(i).SetFloat(v.Index(j).Float())
-		v.Index(j).SetFloat(tmp)
+		tmp:=iValue.Float()
+		iValue.SetFloat(jValue.Float())
+		jValue.SetFloat(tmp)
+	case reflect.Bool:
+		tmp := iValue.Bool()
+		iValue.SetBool(jValue.Bool())
+		jValue.SetBool(tmp)
+	case reflect.Ptr:
+		tmp := iValue.Elem().Addr()
+		iValue.Set(jValue.Elem().Addr())
+		jValue.Set(tmp)
 	}
 	//data[i], data[j] = data[j], data[i]
 }

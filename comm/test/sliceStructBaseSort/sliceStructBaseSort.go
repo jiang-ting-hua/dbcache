@@ -1,4 +1,4 @@
-package slicesort
+package main
 
 import (
 	"fmt"
@@ -7,51 +7,142 @@ import (
 	"sync"
 	"time"
 )
-
-//以切片中结构体字段排序,切片中数据是指针结构体(结构体中可以是所有类型)
-//(注意排序对象是:interface{})数据是切片,切片中每个数据是指针结构体.以结构体中字段索引号排序.(注意结构体首字母要大写)
-type SliceStructData struct {
+//以切片中结构体字段排序,切片中数据是结构体(结构体可以是指针结构体,也可以不是指针结构体)(结构体中是基础类型和指针类型)
+//(注意排序对象是:interface{})数据是切片,切片中每个数据是结构体.以结构体中字段索引号排序.(注意结构体首字母要大写)
+type SliceStructBaseData struct {
 	Data            interface{}                                     //需要排序的切片
 	SortStructField int                                             //以结构体中字段索引排序.
 	IsAsc           bool                                            //是否升序(true升序,false降序)
 	CompFunc        func(data1, data2 interface{}, isAsc bool) bool //用于比较两个数的函数
-	SwapFunc        func(data interface{}, i, j int)                //用于交换两个数的函数
 }
 
-func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, swapFunc func(data interface{}, i, j int)) (sortObj *SliceStructData, err error) {
+//测试结构体
+type AA struct {
+	Dd     string
+	Yy     int
+	RowMap *sync.Map
+}
+
+//测试
+func main() {
+	//tt := []string{"x", "a", "j", "c", "z", "f", "b", "dd", "jo", "twa", "iaj", "di"}
+	RowMapaaa := sync.Map{}
+	RowMapaaa.Store(10, "aaa_map")
+	a := &AA{
+		Dd:     "aaa",
+		Yy:     100,
+		RowMap: &RowMapaaa,
+	}
+	RowMapbbb := sync.Map{}
+	RowMapbbb.Store(20, "bbb_map")
+	b := &AA{
+		Dd:     "bbb",
+		Yy:     200,
+		RowMap: &RowMapbbb,
+	}
+	RowMapccc := sync.Map{}
+	RowMapccc.Store(30, "ccc_map")
+	c := &AA{
+		Dd:     "ccc",
+		Yy:     300,
+		RowMap: &RowMapccc,
+	}
+	RowMapxx := sync.Map{}
+	RowMapxx.Store(40, "xxx_map")
+	d := &AA{
+		Dd:     "xxx",
+		Yy:     400,
+		RowMap: &RowMapxx,
+	}
+	RowMapyy := sync.Map{}
+	RowMapyy.Store(50, "yyy_map")
+	e := &AA{
+		Dd:     "yyy",
+		Yy:     500,
+		RowMap: &RowMapyy,
+	}
+	RowMapq := sync.Map{}
+	RowMapq.Store(60, "qq_map")
+	f := &AA{
+		Dd:     "qq",
+		Yy:     600,
+		RowMap: &RowMapq,
+	}
+	var cc []*AA
+	cc = append(cc, f)
+	cc = append(cc, d)
+	cc = append(cc, a)
+	cc = append(cc, e)
+	cc = append(cc, c)
+	cc = append(cc, b)
+
+	for _, v := range cc {
+		fmt.Println(v.Dd, " , ", v.Yy)
+		v.RowMap.Range(func(column, value interface{}) bool {
+			fmt.Println("-------", column, value)
+			return true
+		})
+	}
+
+	//sortObj, err := NewSliceStructDataSort(cc, 0, false,swap)
+	sortObj, err := NewSliceStructBaseData(cc, 1, true)
+	if err != nil {
+		fmt.Println(err)
+	}
+	sortObj.QuickSort()
+	fmt.Println("--------------------------")
+	for _, v := range cc {
+		fmt.Println(v.Dd, " , ", v.Yy)
+		v.RowMap.Range(func(column, value interface{}) bool {
+			fmt.Println("-------", column, value)
+			return true
+		})
+	}
+
+}
+
+
+func NewSliceStructBaseData(data interface{}, sortStructField int, isAsc bool) (sortObj *SliceStructBaseData, err error) {
 	if data == nil {
 		err = fmt.Errorf("切片为nil")
 		return nil, err
 	}
 	t := reflect.TypeOf(data)
 	v := reflect.ValueOf(data)
-	if v.Len() <= 1 {
-		return nil, nil
+	if t.Kind() == reflect.Ptr{
+		t=t.Elem()
+		v=v.Elem()
 	}
 
 	if t.Kind() != reflect.Slice {
 		err = fmt.Errorf("必须是一个切片")
 		return nil, err
 	}
-	if t.Elem().Kind() != reflect.Ptr || v.Index(0).Elem().Kind() != reflect.Struct {
-		err = fmt.Errorf("切片里的结构体必须是一个指针结构体")
+	if v.Len() <= 1 {
+		return nil, nil
+	}
+	structV:=v.Index(0)
+	if structV.Kind()== reflect.Ptr{
+		structV=structV.Elem()
+	}
+	if  structV.Kind() != reflect.Struct {
+		err = fmt.Errorf("切片里必须是一个结构体")
 		return nil, err
 	}
-	numField := v.Index(0).Elem().NumField()
+	numField := structV.NumField()
 	if sortStructField > numField-1 || sortStructField < 0 {
-		err = fmt.Errorf("切片里的结构体字段索引错误")
+		err = fmt.Errorf("排序的字段未在结构体中,排序的字段索引错误.")
 		return nil, err
 	}
 
-	sortObj = &SliceStructData{
+	sortObj = &SliceStructBaseData{
 		Data:            data,
 		SortStructField: sortStructField,
 		IsAsc:           isAsc,
 		CompFunc:        nil,
-		SwapFunc:        swapFunc,
 	}
 
-	switch v.Index(0).Elem().Field(sortStructField).Kind() {
+	switch structV.Field(sortStructField).Kind() {
 	case reflect.String:
 		sortObj.CompFunc = func(data1, data2 interface{}, isAsc bool) bool {
 			if isAsc {
@@ -85,17 +176,20 @@ func NewSliceStructDataSort(data interface{}, sortStructField int, isAsc bool, s
 			}
 		}
 	default:
-		err = fmt.Errorf("切片类型不能是:%s", t.Kind())
+		err = fmt.Errorf("结构体的排序字段不能是:%s", t.Kind())
 		return nil, err
 	}
 	return sortObj, nil
 }
 
-func (s *SliceStructData) QuickSort() {
+func (s *SliceStructBaseData) QuickSort() {
 	rand.Seed(time.Now().UnixNano())
-	t := reflect.TypeOf(s.Data)
 	v := reflect.ValueOf(s.Data)
-	if t.Kind() != reflect.Slice {
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+
+	if v.Kind() != reflect.Slice {
 		fmt.Println("必须是一个切片")
 		return
 	}
@@ -106,9 +200,8 @@ func (s *SliceStructData) QuickSort() {
 		s.QuickSortIndexGo(0, v.Len()-1, s.CompFunc, s.IsAsc)
 	}
 }
-
 //二分法插入排序.(升序排序)[用在内存中,不要用在硬盘等外存中,例如硬盘文件,顺序更快.]
-func (s *SliceStructData) BinarySearchSort(compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
+func (s *SliceStructBaseData) BinarySearchSort(compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
 	v := reflect.ValueOf(s.Data)
 	if v.Len() <= 1 {
 		return
@@ -129,23 +222,35 @@ func (s *SliceStructData) BinarySearchSort(compFunc func(data1, data2 interface{
 }
 
 //获取切片的数据
-func (s *SliceStructData) GetValue(idx int) (value interface{}) {
+func (s *SliceStructBaseData) GetValue(idx int) (value interface{}) {
 	v := reflect.ValueOf(s.Data)
-	switch v.Index(idx).Elem().Field(s.SortStructField).Kind() {
+	if v.Kind() == reflect.Ptr{
+		v=v.Elem()
+	}
+	structV:=v.Index(idx)
+	if structV.Kind() == reflect.Ptr{
+		structV=structV.Elem()
+	}
+	reflectValue:=structV.Field(s.SortStructField)
+	switch reflectValue.Kind() {
 	case reflect.String:
-		value = v.Index(idx).Elem().Field(s.SortStructField).String()
+		value = reflectValue.String()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Int()
+		value = reflectValue.Int()
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Uint()
+		value = reflectValue.Uint()
 	case reflect.Float32, reflect.Float64:
-		value = v.Index(idx).Elem().Field(s.SortStructField).Float()
+		value = reflectValue.Float()
+		//case reflect.Bool:
+		//	value = reflectValue.Bool()
+		//case reflect.Ptr:
+		//	value = reflectValue.Elem().Addr()
 	}
 	return value
 }
 
 //二分法插入排序,查找位置.(升序排序).start开始位置,end结束位置,cur当前位置
-func (s *SliceStructData) FindLocation(start, end, cur int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) int {
+func (s *SliceStructBaseData) FindLocation(start, end, cur int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) int {
 	//对比当前位置与需要排序的元素大小,近回较大值的位置
 	if start >= end {
 		//if data[start].SortColumn < data[cur].SortColumn {
@@ -166,7 +271,7 @@ func (s *SliceStructData) FindLocation(start, end, cur int, compFunc func(data1,
 }
 
 //快速排序,递归
-func (s *SliceStructData) QuickSortIndexGo(left, right int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
+func (s *SliceStructBaseData) QuickSortIndexGo(left, right int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
 	if right-left < 10 {
 		//调用二分插入排序,对指定数据段排序
 		s.BinarySearchSortIndex(left, right, compFunc, isAsc)
@@ -214,12 +319,44 @@ func (s *SliceStructData) QuickSortIndexGo(left, right int, compFunc func(data1,
 }
 
 //数据交换
-func (s *SliceStructData) Swap(i, j int) {
-	s.SwapFunc(s.Data, i, j)
+func (s *SliceStructBaseData) Swap(i, j int) {
+	v := reflect.ValueOf(s.Data)
+	numField:=v.Index(0).Elem().NumField()
+	for k := 0; k < numField; k++ {
+		iValue:=v.Index(i).Elem().Field(k)
+		jValue:=v.Index(j).Elem().Field(k)
+		switch iValue.Kind() {
+		case reflect.String:
+			tmp := iValue.String()
+			iValue.SetString(jValue.String())
+			jValue.SetString(tmp)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			tmp := iValue.Int()
+			iValue.SetInt(jValue.Int())
+			jValue.SetInt(tmp)
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			tmp := iValue.Uint()
+			iValue.SetUint(jValue.Uint())
+			jValue.SetUint(tmp)
+		case reflect.Float32, reflect.Float64:
+			tmp := iValue.Float()
+			iValue.SetFloat(jValue.Float())
+			jValue.SetFloat(tmp)
+		case reflect.Bool:
+			tmp := iValue.Bool()
+			iValue.SetBool(jValue.Bool())
+			jValue.SetBool(tmp)
+		case reflect.Ptr:
+			tmp := iValue.Elem().Addr()
+			iValue.Set(jValue.Elem().Addr())
+			jValue.Set(tmp)
+		}
+	}
+
 }
 
 //对指定区间数据,利用二分法插入排序.
-func (s *SliceStructData) BinarySearchSortIndex(start, end int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
+func (s *SliceStructBaseData) BinarySearchSortIndex(start, end int, compFunc func(data1, data2 interface{}, isAsc bool) bool, isAsc bool) {
 	if end-start <= 1 {
 		return
 	}
