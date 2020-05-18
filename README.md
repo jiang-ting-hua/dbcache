@@ -44,11 +44,15 @@
     [Goods]
     table_name=goods
     columns=goods_id,type_id,type_name,goods_name,description,qty,price,create_date,update_date
+    #主键
     pkey=goods_id
+    #主键是否自增
     pkey_auto_increment = false
+    #where是sql语句中,where条件
     where=
-    orther=order by price asc
-    #用于分页查询,缓存类型:一.slice切片(按orther里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按orther里排序)
+    #other是sql语句中,where条件后面的语句
+    other=order by price asc
+    #用于分页查询,缓存类型:一.slice切片(按other里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按other里排序)
     cache_type=sliceNotDel
     #是否同步更新,true:实时更新,false:异步更新.
     is_realtime = false
@@ -57,15 +61,19 @@
 
 ##### 样例:数据库users表
 
+
     [Users]
     table_name=users
     columns=uid,age,price,name,address,password,create_date,update_date
     pkey=uid
+    #主键是否自增
     pkey_auto_increment = false
+    #where是sql语句中,where条件
     where=
-    orther=order by age desc
-    #用于分页查询,缓存类型:一.slice切片(按orther里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按orther里排序)
-    cache_type=slice
+    #other是sql语句中,where条件后面的语句
+    other=order by age desc
+    #用于分页查询,缓存类型:一.slice切片(按other里排序),二.sliceNotDel切片(不删除,只记录,速度最快,但后插入数据未排序),三.link链表(按other里排序)
+    cache_type=link
     #是否同步更新,true:实时更新,false:异步更新.
     is_realtime = false
     #异步更新,是否等待返回结果(上面条件是is_realtime = false时)

@@ -104,17 +104,17 @@ func NewDBcache(db *sql.DB, tableName string) (dbCache *DBcache, err error) {
 	if dbCache.TableConfig.GetWhere() == "" {
 		selectSql = "select " + dbCache.TableConfig.GetColumn() +
 			" from " + dbCache.TableConfig.GetTableName() + " " +
-			dbCache.TableConfig.GetOrther()
+			dbCache.TableConfig.GetOther()
 		countSql = "select count(1) from " + dbCache.TableConfig.GetTableName() + " " +
-			dbCache.TableConfig.GetOrther()
+			dbCache.TableConfig.GetOther()
 	} else {
 		selectSql = "select " + dbCache.TableConfig.GetColumn() +
 			" from " + dbCache.TableConfig.GetTableName() +
 			" where " + dbCache.TableConfig.GetWhere() + " " +
-			dbCache.TableConfig.GetOrther()
+			dbCache.TableConfig.GetOther()
 		countSql = "select count(1) from " + dbCache.TableConfig.GetTableName() +
 			" where " + dbCache.TableConfig.GetWhere() + " " +
-			dbCache.TableConfig.GetOrther()
+			dbCache.TableConfig.GetOther()
 	}
 	//查询总行数
 	var count int64
