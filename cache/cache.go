@@ -37,7 +37,7 @@ type columnInfo struct {
 type DBcache struct {
 	//基础配置信息
 	DbConn      *sql.DB                //数据库对象
-	TableConfig conf.Table             //[配置文件cache.conf]保存缓存数据表信息
+	TableConfig conf.CacheTable      //[配置文件cache.conf]保存缓存数据表信息
 	ColumnInfo  map[string]*columnInfo //数据库缓存表中列的信息
 	CacheType   string                 //用于分页查询,缓存类型:一.slice切片,二.sliceNotDel切片(不删除,只记录),三.link链表
 	dataAsync   *DataAsync             //异步同步数据库对象
@@ -48,6 +48,7 @@ type DBcache struct {
 	LinkDbCache LinkCache //链表保存缓存数据[用于页面分页显示](链表,插入和删除快,但查找,修改没切片数据快.适用于插入删除多.数据量大)
 	//切片缓存对象(切片数组优点,因为内存是连续的,查找,修改快,但是插入和删除慢.适用于查询多.数据量少)
 	SliceDbCache []*SliceCache //用来根据行号查询缓存,[用于页面分页显示]
+	//切片缓存类型是[sliceNotDel]
 	DelRowNum    map[int]bool  //(缓存是切片SliceDbCache,并且缓存类型是[sliceNotDel])保存已删除行的行号,当有删除行时,只是把删除的行号保存.未进行切片的删除,因为切片的删除会影响性能.但是这样的缺点是未排序.
 	RowCount     int64         //总行数
 	RwMutex      sync.RWMutex  //读写锁
@@ -60,31 +61,43 @@ type SliceCache struct {
 	SortMode   string    //排列方式
 	RowMap     *sync.Map //数据库中行的数据
 }
-
-func NewDBcache(db *sql.DB, table conf.Table) *DBcache {
-	return &DBcache{
-		DbConn:       db,
-		TableConfig:  table,
-		ColumnInfo:   nil,
-		CacheType:    "link",
-		dataAsync:    NewDatAsync(),
-		DbCache:      sync.Map{},
-		LinkDbCache:  NewLinkCache(),
-		SliceDbCache: nil,
-		DelRowNum:    make(map[int]bool),
-		RowCount:     0,
-		RwMutex:      sync.RWMutex{},
+//新建缓存对象,根据配置文件中,配置的数据库表名.
+func NewDBcache(db *sql.DB, tableName string) (dbCache *DBcache, err error) {
+	//获取配置文件中缓存的所有表
+	result, err := conf.GetCacheTable()
+	if err!=nil{
+		return nil,err
 	}
-}
-
-//初始化缓存信息
-func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
-	dbCache = NewDBcache(db, table)
+	isConfTable:=false
+	tableName=strings.TrimSpace(tableName)
+	for _,v:=range result{
+		if v==tableName{
+			isConfTable=true
+		}
+	}
+	if isConfTable==false{
+		err = fmt.Errorf("InitCache(),the table [%s] is not in cache config. ", tableName)
+		return nil,err
+	}
+	cacheTable:=conf.CacheTable{}
 	//读取配置文件,初始化配置信息
-	err = conf.ParseConf(conf.TABLES_CONF, dbCache.TableConfig)
+	err = conf.ParseConfTable(conf.TABLES_CONF,tableName, &cacheTable)
 	if err != nil {
 		return nil, err
 	}
+	dbCache=&DBcache{
+			DbConn:       db,
+			TableConfig:  cacheTable,
+			ColumnInfo:   nil,
+			CacheType:    "link",
+			dataAsync:    NewDatAsync(),
+			DbCache:      sync.Map{},
+			LinkDbCache:  NewLinkCache(),
+			SliceDbCache: nil,
+			DelRowNum:    make(map[int]bool),
+			RowCount:     0,
+			RwMutex:      sync.RWMutex{},
+		}
 	//根据配置文件生成select查询语句
 	var selectSql string
 	var countSql string
@@ -164,7 +177,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 		dbCache.ColumnInfo[name] = &column
 	}
 
-	//每行的数据,每列保存在[]sql.RawBytes字节切片
+	//每行的数据,行中每列保存在[]sql.RawBytes字节切片
 	values := make([]sql.RawBytes, len(columns))
 	//用接口来保存数据。
 	scanArgs := make([]interface{}, len(columns))
@@ -206,7 +219,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 
 			// 检查值是否为零（空值）,不为空转换为字符串
 			if columnValue == nil {
-				value = "NULL"
+				value = ""
 			} else {
 				value = string(columnValue)
 			}
@@ -280,6 +293,7 @@ func InitCache(db *sql.DB, table conf.Table) (dbCache *DBcache, err error) {
 	CacheObj[dbCache.TableConfig.GetTableName()] = dbCache
 	return dbCache, nil
 }
+
 
 //根据主键,获取该行的数据.
 func (d *DBcache) GetRow(Pkey string) (result map[string]string, err error) {

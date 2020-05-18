@@ -3,20 +3,19 @@ package main
 import (
 	"dbcache/cache"
 	"dbcache/comm"
-	"dbcache/conf"
 	"dbcache/db"
 	"dbcache/grpcserver"
 	"dbcache/logs" //日志库
+	"dbcache/rpcserver"
 	"fmt"
 )
 /*
-	使用说明:以下二步.
+	使用说明:
 
-	一.配置程序目录下二个件:
-	config.conf(设置数据库和日志,rpc和grpc)
-	cache.conf(配置需要缓存的表及列,是否实时更新,还是异步更新数据库等.
+	配置程序目录下二个件:
+	一. config.conf(配置数据库连接和日志,rpc和grpc)
+	二. cache.conf(配置需要缓存的表及列,是否实时更新,还是异步更新数据库等.
 
-	二.在./conf目录下,cache.go源文件中,增加对应表的结构体和方法.每一个需要缓存的表,都需要增加各自的结构体和方法.
 */
 
 //注意:
@@ -40,6 +39,9 @@ import (
   6. UpdateColumns():根据主键,更新多列
   7.InsertRow():插入一行数据
   8.GetRowBetween():从缓存中,获取指定的行,开始行-结束行.用于页面分页显示.
+  9.GetPageCount():获取总页数.用于页面分页显示.
+  10.GetMultipageRows():用于分页,根据指定开始页,获取多少页,每页行数.返回多页行数据.
+  11.GetOnePageRows():用于分页,根据页码和每页行数大小,返回单页行数据.
 */
 
 /*
@@ -93,7 +95,7 @@ func main() {
 	defer db.Close()
 
 	//缓存users表
-	UsersCache, err := cache.InitCache(db, new(conf.Users))
+	UsersCache, err := cache.NewDBcache(db, "users")
 	if err != nil {
 		logs.Fatal("a", "初始化缓存失败, err: %s", err)
 		return
@@ -101,21 +103,25 @@ func main() {
 	defer UsersCache.Close()
 
 	//缓存Goods表
-	GoodsCache, err := cache.InitCache(db, new(conf.Goods))
+	GoodsCache, err := cache.NewDBcache(db, "goods")
 	if err != nil {
 		logs.Fatal("a", "初始化缓存失败, err: %s", err)
 		return
 	}
 	defer GoodsCache.Close()
 
-	////启动rpc,配置IP地址和端口,在config.conf配置文件中.
-	//err = rpcserver.RpcRun()
-	//if err!=nil{
-	//	fmt.Println("RPC service failed",err)
-	//	return
-	//}
-	//
-	//启动Grpc,配置IP地址和端口,在config.conf配置文件中.
+
+	//启动rpc
+	// 配置IP地址和端口,在config.conf配置文件中.
+	err = rpcserver.RpcRun()
+	if err!=nil{
+		fmt.Println("RPC service failed",err)
+		return
+	}
+
+
+	//启动Grpc
+	// 配置IP地址和端口,在config.conf配置文件中.
 	err = grpcserver.GrpcRun()
 	if err!=nil{
 		fmt.Println("GRPC service failed",err)
@@ -192,8 +198,6 @@ func main() {
 	for _,vv:=range ss{
 		fmt.Println(vv)
 	}
-
-
 	//bytes, err = json.Marshal(value)
 	//if err!=nil{
 	//	fmt.Println(err)
@@ -299,7 +303,7 @@ func main() {
 	<-wait
 }
 
-func prof() {
+//func prof() {
 	/*//性能分析
 	//新建性能分析文件
 	f, err := os.Create("./cpu.prof")
@@ -333,4 +337,4 @@ func prof() {
 	}
 	lookup.WriteTo(fg,0)
 	defer fg.Close()*/
-}
+//}
