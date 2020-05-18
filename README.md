@@ -13,8 +13,10 @@
 
     注意:目前只支持主键为一个列.
     缓存数据可以是字符,整型,浮点,日期(datetime,timestamp).	
-    (注意日期型,涉及时区,如果在连接时加上参数:&amp;parseTime=true&amp;loc=Local 返回数据带时区信息.现只是保存为字符串,如果需要转换time类型,需注意数据库和服务器的时区问题)
-    注意数据库的这二个连接参数: parseTime是查询结果是否自动解析为时间. loc是MySQL的时区设置.
+    (注意数据库连接参数:&parseTime=true&loc=Local)
+    如果在连接时加上参数:&parseTime=true 返回数据带时区信息.现只是保存为字符串,如果需要转换time类型,需注意数据库和服务器的时区问题)
+    parseTime=true,不加这个参数,数据库返回时就不带时区.
+    参数: parseTime是查询结果是否自动解析为时间. loc是MySQL的时区设置.
 
     目前如果有更新,先更新数据库,再更新缓存.如果实时更新,先更新数据库,再更新缓存.
     异步更新,会先把执行SQL语句保存于当前目录下的文件async_sql.sql,再更新数据库,如果更新失败,会把失败的sql的语句保存于async_sql_failed.sql文件.

@@ -45,10 +45,11 @@ import (
 */
 
 /*
-    (注意日期型,涉及时区,如果在连接时加上参数:&parseTime=true返回数据带时区信息.
-    暂时未转换为时间类型,只是转换为字符串,如果需要time类型,可以自己转换.所以连接mysql时,不带这个参数.)
+    (注意数据库连接参数:&parseTime=true&loc=Local)
+    如果在连接时加上参数:&parseTime=true 返回数据带时区信息.现只是保存为字符串,如果需要转换time类型,需注意数据库和服务器的时区问题)
+    parseTime=true,不加这个参数,数据库返回时就不带时区.
+    参数: parseTime是查询结果是否自动解析为时间. loc是MySQL的时区设置.
 
-	&parseTime=true&loc=Local  其中parseTime是查询结果是否自动解析为时间. loc是MySQL的时区设置.
 	在windows下，time.Parse()的时区和time.Format()的时区是一致的。
 	在linux环境下，time.Parse()的默认时区是UTC，time.Format()的时区默认是本地
     在时间转换时要注意.相差8小时 (CST=UTC+8小时) (UTC=CST-8小时)
